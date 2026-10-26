@@ -11,6 +11,9 @@ import { initCache } from './cache.js';
 import authRoutes from './routes/auth.js';
 import libraryRoutes from './routes/library.js';
 import adminRoutes from './routes/admin.js';
+import shareRoutes, { findShared } from './routes/share.js';
+import { injectOg } from './utils/og.js';
+import { ah } from './utils/ah.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 fs.mkdirSync(path.join(config.mediaRoot, '.tmp'), { recursive: true });
@@ -26,12 +29,23 @@ app.use(cookieParser());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/share', shareRoutes);   // public, token-based
 app.use('/api', libraryRoutes);
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 
 // Optional: serve the built React app from Node too (when not using nginx for static files)
 const dist = path.resolve(__dirname, '../../client/dist');
 if (fs.existsSync(dist)) {
+  // Shared-link page: same React app, plus title/preview-image tags for chat apps
+  app.get('/s/:token', ah(async (req, res) => {
+    let html = await fs.promises.readFile(path.join(dist, 'index.html'), 'utf8');
+    const v = await findShared(req.params.token, 'title');
+    if (v) {
+      const base = `${req.protocol}://${req.get('host')}`;
+      html = injectOg(html, { title: v.title, url: `${base}/s/${req.params.token}`, image: `${base}/api/share/${req.params.token}/poster` });
+    }
+    res.set('Cache-Control', 'no-store').type('html').send(html);
+  }));
   app.use(express.static(dist, { index: false, maxAge: '1h' }));
   app.get('*', (req, res) => res.sendFile(path.join(dist, 'index.html')));
 }

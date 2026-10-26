@@ -61,3 +61,23 @@ let chain = Promise.resolve();
 export function queueProcess(id) {
   chain = chain.then(() => processVideo(id)).catch((e) => console.warn('thumbnail job failed:', e.message));
 }
+
+// Big 1280px frame for banners / link previews. Made on first request, then served from disk.
+// Jobs run one at a time so a page load never spawns several ffmpeg processes.
+let posterQueue = Promise.resolve();
+const posterJobs = new Map();
+export function getPoster(v) {
+  const key = String(v._id);
+  const out = hdPath(key);
+  if (!posterJobs.has(key)) {
+    const job = posterQueue.then(async () => {
+      if (await exists(out)) return out;
+      const at = Math.max(1, Math.min((v.duration || 0) * 0.18, 180));
+      await run('ffmpeg', ['-y', '-ss', String(at), '-i', absPath(v.relPath), '-frames:v', '1', '-vf', 'scale=1280:-2', '-q:v', '3', out], { timeout: 60000 });
+      return out;
+    }).finally(() => posterJobs.delete(key));
+    posterQueue = job.catch(() => {});
+    posterJobs.set(key, job);
+  }
+  return posterJobs.get(key);
+}

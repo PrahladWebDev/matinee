@@ -10,6 +10,11 @@ const schema = new mongoose.Schema(
     mimeType: { type: String, default: 'video/mp4' },
     duration: { type: Number, default: 0 },
     hasThumb: { type: Boolean, default: false },
+    // sharing: anyone with /s/<shareToken> can watch THIS video only, no login
+    shareToken: { type: String, index: { unique: true, sparse: true } },
+    shareExpires: { type: Date },
+    shareViews: { type: Number, default: 0 },
+    sharedAt: { type: Date },
   },
   { timestamps: true }
 );

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { api } from '../api';
 import { fmt } from '../progress';
+import ShareDialog, { copyText, shareUrl } from '../components/ShareDialog';
 
 const VID = /\.(mp4|m4v|webm|mkv|mov)$/i;
 const nat = new Intl.Collator(undefined, { numeric: true });
@@ -167,6 +168,7 @@ function Folders({ folders, reload }) {
 /* ---------------- manage videos ---------------- */
 function Manager({ folders }) {
   const [fid, setFid] = useState('root');
+  const [share, setShare] = useState(null);
   const [data, setData] = useState(null);
   const load = () => api.folder(fid).then(setData).catch(() => setData(null));
   useEffect(() => { load(); }, [fid]); // eslint-disable-line
@@ -191,6 +193,7 @@ function Manager({ folders }) {
             <span className="grow-text">{v.title}</span>
             <small className="muted">{v.duration ? fmt(v.duration) : ''} {sizeOf(v.size)}</small>
             <button className="link" onClick={() => rename(v)}>Rename</button>
+            <button className="link" onClick={() => setShare(v)}>Share</button>
             <select aria-label="Move to" value="" onChange={(e) => e.target.value && move(v, e.target.value)}>
               <option value="">Move to…</option>
               <option value="root">Library root</option>
@@ -200,6 +203,41 @@ function Manager({ folders }) {
           </li>
         ))}
         {data && !data.videos.length && <li className="muted">No videos directly in this folder.</li>}
+      </ul>
+      {share && <ShareDialog video={share} onClose={() => setShare(null)} />}
+    </section>
+  );
+}
+
+/* ---------------- shared links ---------------- */
+function SharedLinks() {
+  const [list, setList] = useState(null);
+  const [copied, setCopied] = useState('');
+  const load = () => api.shares().then(setList).catch(() => setList([]));
+  useEffect(() => { load(); }, []);
+  const copy = async (v) => { await copyText(shareUrl(v.shareToken)); setCopied(v._id); setTimeout(() => setCopied(''), 1500); };
+  const stop = async (v) => {
+    if (!confirm(`Stop sharing “${v.title}”? The link will stop working.`)) return;
+    await api.revokeShare(v._id); load();
+  };
+  const when = (d) => (d ? new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Never expires');
+  return (
+    <section className="panel">
+      <h2>Shared links</h2>
+      <p className="muted">Anyone with one of these links can watch that one video without logging in. Stop sharing to disable a link immediately.</p>
+      <ul className="tree">
+        {list?.map((v) => {
+          const expired = v.shareExpires && new Date(v.shareExpires) < new Date();
+          return (
+            <li key={v._id}>
+              <span className="grow-text">{v.title}</span>
+              <small className="muted">{expired ? 'Expired' : when(v.shareExpires)} · {v.shareViews || 0} views</small>
+              <button className="link" onClick={() => copy(v)}>{copied === v._id ? 'Copied ✓' : 'Copy link'}</button>
+              <button className="link danger" onClick={() => stop(v)}>Stop sharing</button>
+            </li>
+          );
+        })}
+        {list && !list.length && <li className="muted">Nothing is shared right now.</li>}
       </ul>
     </section>
   );
@@ -236,6 +274,7 @@ export default function Admin() {
       <Uploader folders={folders} reload={reload} />
       <Folders folders={folders} reload={reload} />
       <Manager folders={folders} />
+      <SharedLinks />
       <Scan reload={reload} />
     </div>
   );

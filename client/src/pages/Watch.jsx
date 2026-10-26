@@ -3,6 +3,8 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import Icon from '../components/Icon';
 import Player from '../components/Player';
+import ShareDialog from '../components/ShareDialog';
+import { useAuth } from '../App';
 import { fmt } from '../progress';
 
 export default function Watch() {
@@ -13,6 +15,8 @@ export default function Watch() {
   const [mode, setMode] = useState(() => localStorage.getItem('mt_autoplay') || 'next');
   const [rand, setRand] = useState(null);
   const activeRef = useRef(null);
+  const auth = useAuth();
+  const [sharing, setSharing] = useState(false);
 
   // The previous video keeps playing until the next one's data arrives (keeps fullscreen alive)
   useEffect(() => {
@@ -72,6 +76,7 @@ export default function Watch() {
             <button className="btn" disabled={!data.nextId} onClick={() => go(data.nextId)}>Next <Icon name="next" size={18} /></button>
             <button className="btn accent" onClick={() => surprise(folderId)} disabled={!folderId}><Icon name="shuffle" size={18} /> Random from this folder</button>
             <button className="btn accent" onClick={() => surprise()}><Icon name="shuffle" size={18} /> Random from everything</button>
+            {auth.authenticated && <button className="btn" onClick={() => setSharing(true)}><Icon name="share" size={18} /> Share</button>}
             <label className="select-inline">When this ends
               <select value={mode} onChange={(e) => changeMode(e.target.value)}>
                 <option value="next">Play next episode</option>
@@ -99,6 +104,7 @@ export default function Watch() {
           </div>
         </aside>
       )}
+      {sharing && <ShareDialog video={vid} onClose={() => setSharing(false)} />}
     </div>
   );
 }

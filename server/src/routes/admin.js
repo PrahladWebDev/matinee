@@ -150,6 +150,51 @@ r.delete('/videos/:id', ah(async (req, res) => {
   res.json({ ok: true });
 }));
 
+// ---------- sharing ----------
+const shareJson = (v) => ({
+  shared: !!v.shareToken,
+  token: v.shareToken || null,
+  expiresAt: v.shareExpires || null,
+  views: v.shareViews || 0,
+  sharedAt: v.sharedAt || null,
+});
+
+r.get('/videos/:id/share', ah(async (req, res) => {
+  const v = await Video.findById(req.params.id).select('shareToken shareExpires shareViews sharedAt');
+  if (!v) return bad(res, 404, 'Video not found');
+  res.json(shareJson(v));
+}));
+
+// create a link (or change expiry / make a new link). expires: never | 1d | 7d | 30d
+r.post('/videos/:id/share', ah(async (req, res) => {
+  const v = await Video.findById(req.params.id);
+  if (!v) return bad(res, 404, 'Video not found');
+  const { expires, regenerate } = req.body || {};
+  if (!v.shareToken || regenerate) {
+    v.shareToken = crypto.randomBytes(24).toString('base64url');   // 192-bit, unguessable
+    v.sharedAt = new Date();
+    v.shareViews = 0;
+  }
+  if (expires !== undefined) {
+    const days = { '1d': 1, '7d': 7, '30d': 30 }[expires];
+    v.shareExpires = days ? new Date(Date.now() + days * 86400000) : undefined;
+  }
+  await v.save();
+  res.json(shareJson(v));
+}));
+
+r.delete('/videos/:id/share', ah(async (req, res) => {
+  const v = await Video.findById(req.params.id);
+  if (!v) return bad(res, 404, 'Video not found');
+  v.shareToken = undefined; v.shareExpires = undefined; v.sharedAt = undefined; v.shareViews = 0;
+  await v.save();
+  res.json({ shared: false });
+}));
+
+r.get('/shares', ah(async (req, res) => {
+  res.json(await Video.find({ shareToken: { $exists: true } }).sort('-sharedAt').select('title shareToken shareExpires shareViews sharedAt').lean());
+}));
+
 // ---------- scan: import files you copied to MEDIA_ROOT by scp/rsync ----------
 r.post('/scan', ah(async (req, res) => {
   const stats = { newFolders: 0, newVideos: 0, removed: 0 };

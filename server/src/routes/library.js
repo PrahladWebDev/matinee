@@ -1,6 +1,4 @@
 import { Router } from 'express';
-import fs from 'fs';
-import fsp from 'fs/promises';
 import mongoose from 'mongoose';
 import { Folder } from '../models/Folder.js';
 import { Video } from '../models/Video.js';
@@ -8,11 +6,8 @@ import { config } from '../config.js';
 import { cached } from '../cache.js';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import { ah } from '../utils/ah.js';
-import { execFile } from 'child_process';
-import { promisify } from 'util';
-import { absPath, esc, exists, hdPath, thumbPath } from '../utils/media.js';
-
-const run = promisify(execFile);
+import { esc, getPoster, thumbPath } from '../utils/media.js';
+import { sendVideo } from '../utils/stream.js';
 
 const r = Router();
 const gate = config.publicBrowsing ? optionalAuth : requireAuth;
@@ -129,33 +124,13 @@ r.get('/search', gate, ah(async (req, res) => {
   res.json(await Video.find({ title: { $regex: esc(q), $options: 'i' } }).limit(40).select(FIELDS).lean());
 }));
 
-// Big 1280px frame for the hero banner. Made on first request, then served from disk.
-// Jobs run one at a time so a page load never spawns several ffmpeg processes.
-let posterQueue = Promise.resolve();
-const posterJobs = new Map();
-function makePoster(v) {
-  const key = String(v._id);
-  const out = hdPath(key);
-  if (!posterJobs.has(key)) {
-    const job = posterQueue.then(async () => {
-      if (await exists(out)) return out;
-      const at = Math.max(1, Math.min((v.duration || 0) * 0.18, 180));
-      await run('ffmpeg', ['-y', '-ss', String(at), '-i', absPath(v.relPath), '-frames:v', '1', '-vf', 'scale=1280:-2', '-q:v', '3', out], { timeout: 60000 });
-      return out;
-    }).finally(() => posterJobs.delete(key));
-    posterQueue = job.catch(() => {});
-    posterJobs.set(key, job);
-  }
-  return posterJobs.get(key);
-}
-
 r.get('/poster/:id', gate, ah(async (req, res) => {
   const id = req.params.id;
   if (!isId(id)) return res.sendStatus(404);
   const v = await Video.findById(id).select('relPath duration').lean();
   if (!v) return res.sendStatus(404);
   let file;
-  try { file = await makePoster(v); } catch { file = thumbPath(id); }   // fall back to the small thumbnail
+  try { file = await getPoster(v); } catch { file = thumbPath(id); }   // fall back to the small thumbnail
   res.sendFile(file, { dotfiles: 'allow', headers: { 'Cache-Control': 'private, max-age=604800' } },
     (err) => { if (err && !res.headersSent) res.sendStatus(404); });
 }));
@@ -166,40 +141,13 @@ r.get('/thumb/:id', gate, (req, res) => {
     (err) => { if (err && !res.headersSent) res.sendStatus(404); });
 });
 
-// Video streaming with HTTP Range support (instant seeking, no full download)
+// Video streaming (login required unless PUBLIC_BROWSING=true)
 r.get('/stream/:id', gate, ah(async (req, res) => {
   const id = req.params.id;
   if (!isId(id)) return res.sendStatus(404);
   const v = await cached('v:' + id, () => Video.findById(id).select('relPath mimeType').lean());
   if (!v) return res.sendStatus(404);
-
-  if (config.nginxAccel) {
-    // nginx serves the file itself (sendfile + native Range). Node only did the auth check.
-    res.setHeader('X-Accel-Redirect', '/_media/' + v.relPath.split('/').map(encodeURIComponent).join('/'));
-    res.setHeader('Cache-Control', 'private, max-age=3600');
-    return res.end();
-  }
-
-  const file = absPath(v.relPath);
-  let size;
-  try { size = (await fsp.stat(file)).size; } catch { return res.sendStatus(404); }
-
-  const base = { 'Content-Type': v.mimeType, 'Accept-Ranges': 'bytes', 'Cache-Control': 'private, max-age=3600' };
-  const range = req.headers.range;
-  if (!range) {
-    res.writeHead(200, { ...base, 'Content-Length': size });
-    return fs.createReadStream(file, { highWaterMark: 1 << 20 }).pipe(res);
-  }
-  const m = /^bytes=(\d*)-(\d*)$/.exec(range);
-  if (!m || (m[1] === '' && m[2] === '')) { res.writeHead(416, { 'Content-Range': `bytes */${size}` }); return res.end(); }
-  let start, end;
-  if (m[1] === '') { start = Math.max(0, size - parseInt(m[2], 10)); end = size - 1; }
-  else { start = parseInt(m[1], 10); end = m[2] ? Math.min(parseInt(m[2], 10), size - 1) : size - 1; }
-  if (start >= size || start > end) { res.writeHead(416, { 'Content-Range': `bytes */${size}` }); return res.end(); }
-  res.writeHead(206, { ...base, 'Content-Range': `bytes ${start}-${end}/${size}`, 'Content-Length': end - start + 1 });
-  const stream = fs.createReadStream(file, { start, end, highWaterMark: 1 << 20 });
-  stream.pipe(res);
-  res.on('close', () => stream.destroy());
+  await sendVideo(req, res, v);
 }));
 
 export default r;

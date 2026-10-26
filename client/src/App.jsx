@@ -7,6 +7,7 @@ import Home from './pages/Home';
 import Folder from './pages/Folder';
 import Watch from './pages/Watch';
 import Admin from './pages/Admin';
+import Share from './pages/Share';
 
 const Auth = createContext(null);
 export const useAuth = () => useContext(Auth);
@@ -27,6 +28,7 @@ export default function App() {
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />
+          <Route path="/s/:token" element={<Share />} />
           <Route element={canBrowse ? <Layout /> : <Navigate to="/login" replace />}>
             <Route index element={<Home />} />
             <Route path="folder/:id" element={<Folder />} />

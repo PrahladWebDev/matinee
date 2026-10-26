@@ -1,24 +1,42 @@
-MATINEE UI UPDATE - files in this zip
-Extract into your project ROOT (the folder that contains client/ and server/) and choose "Replace".
+MATINEE - SHARE LINK UPDATE
+Extract into your project ROOT (the folder containing client/ and server/) and choose "Replace".
 
 NEW files
-  client/src/format.js
-  client/src/components/Hero.jsx
-  client/src/components/Skeleton.jsx
-  UPLOAD_WITH_WINSCP.md
+  server/src/routes/share.js            public, token-based routes (no login)
+  server/src/utils/stream.js            video streaming (now shared by normal + shared links)
+  server/src/utils/og.js                title + preview image for WhatsApp/Telegram cards
+  client/src/pages/Share.jsx            the page people see when they open a shared link
+  client/src/components/ShareDialog.jsx  the Share popup (create / copy / expiry / stop)
 
 REPLACED files
-  client/src/styles.css
+  server/src/index.js
+  server/src/models/Video.js            adds shareToken / shareExpires / shareViews / sharedAt
+  server/src/routes/admin.js            share endpoints
+  server/src/routes/library.js          uses the shared streaming + poster helpers
+  server/src/utils/media.js
+  client/src/api.js
+  client/src/App.jsx                    adds the public /s/:token route
+  client/src/pages/Watch.jsx            Share button
+  client/src/pages/Admin.jsx            Share button in Manage videos + "Shared links" panel
   client/src/components/Icon.jsx
-  client/src/components/Navbar.jsx
-  client/src/components/Row.jsx
-  client/src/components/VideoCard.jsx
-  client/src/components/FolderCard.jsx
-  client/src/pages/Home.jsx
-  client/src/pages/Folder.jsx
-  server/src/routes/library.js     (adds /api/poster/:id for sharp hero images)
-  server/src/routes/admin.js       (also removes the HD poster when a video is deleted)
-  server/src/utils/media.js        (HD poster helpers)
+  client/src/styles.css
+  deploy/nginx.conf
+  MATINEE_COMPLETE_DEPLOYMENT_GUIDE.md
 
-After copying: git add . && git commit -m "UI redesign" && git push
-GitHub Actions rebuilds the client and reloads the API. No .env changes needed.
+DEPLOY
+1. git add . && git commit -m "Share links" && git push     (Actions rebuilds + reloads)
+2. ONE manual VPS step (only needed for the WhatsApp/Telegram preview card;
+   links work without it):
+     sudo nano /etc/nginx/sites-available/matinee.prahladsingh.in
+   Inside the main server block (the one with "listen 443 ssl"), add this ABOVE "location /assets/":
+
+     location /s/ {
+         proxy_pass http://localhost:5009;
+         proxy_set_header Host $host;
+         proxy_set_header X-Real-IP $remote_addr;
+         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+         proxy_set_header X-Forwarded-Proto $scheme;
+     }
+
+   then:  sudo nginx -t && sudo systemctl reload nginx
+No .env changes needed.

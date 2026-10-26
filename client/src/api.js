@@ -40,6 +40,13 @@ export const api = {
   deleteVideo: (id) => call('DELETE', '/admin/videos/' + id),
   scan: () => call('POST', '/admin/scan', {}),
 
+  // sharing (getShare/createShare/revokeShare/shares need login; shareInfo is public)
+  getShare: (id) => call('GET', `/admin/videos/${id}/share`),
+  createShare: (id, body) => call('POST', `/admin/videos/${id}/share`, body || {}),
+  revokeShare: (id) => call('DELETE', `/admin/videos/${id}/share`),
+  shares: () => call('GET', '/admin/shares'),
+  shareInfo: (token) => call('GET', '/share/' + token),
+
   // returns { promise, abort } so the UI can show progress and cancel
   upload(file, { folderId, title }, onProgress) {
     const xhr = new XMLHttpRequest();
