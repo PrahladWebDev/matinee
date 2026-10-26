@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
 import { clearProgress, fmt, getProgress, saveProgress } from '../progress';
 
+const FITS = ['fit', 'fill', 'stretch'];
+const FIT_LABEL = { fit: 'Fit', fill: 'Fill', stretch: 'Stretch' };
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 const getPrefs = () => { try { return JSON.parse(localStorage.getItem('mt_prefs')) || {}; } catch { return {}; } };
 const setPrefs = (p) => { try { localStorage.setItem('mt_prefs', JSON.stringify({ ...getPrefs(), ...p })); } catch {} };
@@ -11,7 +13,7 @@ const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
  * Custom player. Stays mounted while you move between episodes, so
  * fullscreen survives auto-play of the next video.
  */
-export default function Player({ video, src, onBack, onNext, onPrev, upNext, onPlayUpNext, prefetchSrc }) {
+export default function Player({ video, src, onBack, onNext, onPrev, upNext, onPlayUpNext, onRandom, hasFolder, prefetchSrc }) {
   const vref = useRef(null);
   const box = useRef(null);
   const bar = useRef(null);
@@ -25,7 +27,9 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
   const [vol, setVol] = useState(getPrefs().volume ?? 1);
   const [muted, setMuted] = useState(getPrefs().muted ?? false);
   const [rate, setRate] = useState(getPrefs().rate ?? 1);
+  const [fit, setFit] = useState(FITS.includes(getPrefs().fit) ? getPrefs().fit : 'fit');
   const [full, setFull] = useState(false);
+  const [pseudo, setPseudo] = useState(false);   // iPhone fallback: CSS fullscreen (iOS can't fullscreen a div)
   const [show, setShow] = useState(true);
   const [wait, setWait] = useState(true);
   const [err, setErr] = useState(false);
@@ -97,11 +101,16 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
   }, []);
 
   const toggleFull = useCallback(() => {
-    const el = box.current, v = vref.current;
-    if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
-    else if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
-    else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
-    else if (v.webkitEnterFullscreen) v.webkitEnterFullscreen();
+    const el = box.current;
+    const nativeOn = document.fullscreenElement || document.webkitFullscreenElement;
+    if (nativeOn) { (document.exitFullscreen || document.webkitExitFullscreen).call(document); return; }
+    if (el.requestFullscreen || el.webkitRequestFullscreen) {
+      const r = el.requestFullscreen ? el.requestFullscreen() : el.webkitRequestFullscreen();
+      // turn the phone sideways automatically (Android/Chrome); ignored where unsupported
+      Promise.resolve(r).then(() => screen.orientation?.lock?.('landscape').catch(() => {})).catch(() => {});
+      return;
+    }
+    setPseudo((p) => !p);   // iPhone: CSS fullscreen, rotated to landscape when held upright
   }, []);
 
   const pip = useCallback(async () => {
@@ -112,14 +121,32 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
     } catch {}
   }, []);
 
+  const cycleFit = useCallback(() => {
+    setFit((f) => {
+      const n = FITS[(FITS.indexOf(f) + 1) % FITS.length];
+      setPrefs({ fit: n });
+      flashIt('vol', FIT_LABEL[n]);
+      return n;
+    });
+  }, []);
+
   const applyRate = (r) => { const v = vref.current; v.defaultPlaybackRate = r; v.playbackRate = r; };
 
   useEffect(() => {
-    const onFs = () => setFull(!!(document.fullscreenElement || document.webkitFullscreenElement));
+    const onFs = () => {
+      const on = !!(document.fullscreenElement || document.webkitFullscreenElement);
+      setFull(on);
+      if (!on) { try { screen.orientation?.unlock?.(); } catch {} }
+    };
     document.addEventListener('fullscreenchange', onFs);
     document.addEventListener('webkitfullscreenchange', onFs);
     return () => { document.removeEventListener('fullscreenchange', onFs); document.removeEventListener('webkitfullscreenchange', onFs); };
   }, []);
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('no-scroll', pseudo);
+    return () => document.documentElement.classList.remove('no-scroll');
+  }, [pseudo]);
 
   // ---- keyboard shortcuts ----
   useEffect(() => {
@@ -249,13 +276,14 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
     }, 270);
   };
 
+  const isFull = full || pseudo;
   const shown = scrub ?? cur;
   const pct = dur ? (shown / dur) * 100 : 0;
   const ui = show || !playing || menu || scrub !== null;
   const volIcon = muted || vol === 0 ? 'mute' : vol < 0.5 ? 'volumeLow' : 'volume';
 
   return (
-    <div ref={box} className={`player${ui ? ' ui' : ''}${full ? ' full' : ''}`} onMouseMove={poke} onMouseLeave={() => playing && setShow(false)}>
+    <div ref={box} className={`player${ui ? ' ui' : ''}${isFull ? ' full' : ''}${pseudo ? ' pseudo' : ''}${fit !== 'fit' ? ' fit-' + fit : ''}`} onMouseMove={poke} onMouseLeave={() => playing && setShow(false)}>
       <video
         ref={vref}
         src={src}
@@ -302,19 +330,23 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
         </div>
       )}
 
-      {ended && !upNext && (
-        <button className="p-big" onClick={() => { vref.current.currentTime = 0; vref.current.play(); }} aria-label="Replay"><Icon name="replay" size={52} /></button>
-      )}
-
-      {ended && upNext && (
-        <div className="p-next">
-          <small>Up next</small>
-          <h3>{upNext.title}</h3>
-          {count !== null && <p>Starting in {count}s</p>}
-          <div className="p-next-btns">
-            <button className="btn accent" onClick={() => { setCount(null); onPlayUpNext(); }}><Icon name="play" size={18} /> Play now</button>
-            <button className="btn" onClick={() => setCount(null)}>Stay here</button>
-            <button className="btn" onClick={() => { setCount(null); vref.current.currentTime = 0; vref.current.play(); }}>Replay</button>
+      {ended && (
+        <div className="p-end" onClick={(e) => e.stopPropagation()}>
+          <div className="p-end-card">
+            {upNext ? (
+              <>
+                <small>Up next</small>
+                <h3>{upNext.title}</h3>
+                {count !== null && <p>Starting in {count}s</p>}
+              </>
+            ) : <h3>Finished</h3>}
+            <div className="p-end-btns">
+              {upNext && <button className="btn accent" onClick={() => { setCount(null); onPlayUpNext(); }}><Icon name="play" size={18} /> Play next</button>}
+              {onRandom && hasFolder && <button className="btn glass" onClick={() => { setCount(null); onRandom('folder'); }}><Icon name="shuffle" size={18} /> Random from folder</button>}
+              {onRandom && <button className="btn glass" onClick={() => { setCount(null); onRandom('all'); }}><Icon name="shuffle" size={18} /> Random from all</button>}
+              <button className="btn glass" onClick={() => { setCount(null); vref.current.currentTime = 0; vref.current.play(); }}><Icon name="replay" size={18} /> Replay</button>
+              {count !== null && <button className="btn" onClick={() => setCount(null)}>Stay here</button>}
+            </div>
           </div>
         </div>
       )}
@@ -371,7 +403,8 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
             )}
           </div>
           {document.pictureInPictureEnabled && <button className="p-btn" onClick={pip} aria-label="Picture in picture"><Icon name="pip" size={24} /></button>}
-          <button className="p-btn" onClick={toggleFull} aria-label="Fullscreen"><Icon name={full ? 'fullExit' : 'full'} size={26} /></button>
+          <button className="p-btn p-fit" onClick={cycleFit} aria-label="Stretch video" title="Fit / Fill / Stretch"><Icon name="stretch" size={24} />{fit !== 'fit' && <em className="fit-badge">{FIT_LABEL[fit].toUpperCase()}</em>}</button>
+          <button className="p-btn" onClick={toggleFull} aria-label="Fullscreen"><Icon name={isFull ? 'fullExit' : 'full'} size={26} /></button>
         </div>
       </div>
     </div>

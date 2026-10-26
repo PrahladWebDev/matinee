@@ -19,6 +19,9 @@ export default function Watch() {
   const [sharing, setSharing] = useState(false);
 
   // The previous video keeps playing until the next one's data arrives (keeps fullscreen alive)
+  // always start at the top so the video is on screen (phones keep the old scroll position otherwise)
+  useEffect(() => { window.scrollTo({ top: 0, left: 0, behavior: 'instant' }); }, [id]);
+
   useEffect(() => {
     setErr('');
     api.watch(id).then((d) => { setData(d); document.title = d.video.title + ' · Matinee'; }).catch((e) => setErr(e.message));
@@ -35,7 +38,12 @@ export default function Watch() {
     return () => { alive = false; };
   }, [vid?._id, mode]); // eslint-disable-line
 
-  useEffect(() => { activeRef.current?.scrollIntoView({ block: 'nearest' }); }, [vid?._id]);
+  // keep the current episode visible INSIDE the playlist only (scrollIntoView used to scroll the whole page down)
+  useEffect(() => {
+    const el = activeRef.current, list = el?.parentElement;
+    if (!el || !list) return;
+    list.scrollTop = Math.max(0, el.offsetTop - list.offsetTop - list.clientHeight / 2 + el.clientHeight / 2);
+  }, [vid?._id]);
 
   const changeMode = (m) => { setMode(m); localStorage.setItem('mt_autoplay', m); };
   const go = (vId) => vId && nav('/watch/' + vId);
@@ -63,6 +71,8 @@ export default function Watch() {
           onPrev={data.prevId ? () => go(data.prevId) : null}
           upNext={upNext}
           onPlayUpNext={() => upNext && go(upNext.id)}
+          onRandom={(scope) => surprise(scope === 'folder' ? folderId : undefined)}
+          hasFolder={!!folderId}
           prefetchSrc={upNext ? `/api/stream/${upNext.id}` : null}
         />
         <div className="watch-info">
