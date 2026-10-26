@@ -8,7 +8,11 @@ import { config } from '../config.js';
 import { cached } from '../cache.js';
 import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import { ah } from '../utils/ah.js';
-import { absPath, esc, thumbPath } from '../utils/media.js';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+import { absPath, esc, exists, hdPath, thumbPath } from '../utils/media.js';
+
+const run = promisify(execFile);
 
 const r = Router();
 const gate = config.publicBrowsing ? optionalAuth : requireAuth;
@@ -123,6 +127,37 @@ r.get('/search', gate, ah(async (req, res) => {
   const q = String(req.query.q || '').trim().slice(0, 80);
   if (q.length < 2) return res.json([]);
   res.json(await Video.find({ title: { $regex: esc(q), $options: 'i' } }).limit(40).select(FIELDS).lean());
+}));
+
+// Big 1280px frame for the hero banner. Made on first request, then served from disk.
+// Jobs run one at a time so a page load never spawns several ffmpeg processes.
+let posterQueue = Promise.resolve();
+const posterJobs = new Map();
+function makePoster(v) {
+  const key = String(v._id);
+  const out = hdPath(key);
+  if (!posterJobs.has(key)) {
+    const job = posterQueue.then(async () => {
+      if (await exists(out)) return out;
+      const at = Math.max(1, Math.min((v.duration || 0) * 0.18, 180));
+      await run('ffmpeg', ['-y', '-ss', String(at), '-i', absPath(v.relPath), '-frames:v', '1', '-vf', 'scale=1280:-2', '-q:v', '3', out], { timeout: 60000 });
+      return out;
+    }).finally(() => posterJobs.delete(key));
+    posterQueue = job.catch(() => {});
+    posterJobs.set(key, job);
+  }
+  return posterJobs.get(key);
+}
+
+r.get('/poster/:id', gate, ah(async (req, res) => {
+  const id = req.params.id;
+  if (!isId(id)) return res.sendStatus(404);
+  const v = await Video.findById(id).select('relPath duration').lean();
+  if (!v) return res.sendStatus(404);
+  let file;
+  try { file = await makePoster(v); } catch { file = thumbPath(id); }   // fall back to the small thumbnail
+  res.sendFile(file, { dotfiles: 'allow', headers: { 'Cache-Control': 'private, max-age=604800' } },
+    (err) => { if (err && !res.headersSent) res.sendStatus(404); });
 }));
 
 r.get('/thumb/:id', gate, (req, res) => {

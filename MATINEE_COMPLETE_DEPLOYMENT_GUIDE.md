@@ -3,7 +3,7 @@
 
 Different shape from your other projects, worth reading Part 0 before starting:
 
-- **Backend is plain Express (ESM)**, run with `node src/index.js` under PM2 on port **`5009`**. Same idea as ShareVault / School ERP.
+- **Backend is plain Express (ESM)**, run with `node src/index.js` under PM2 on port **`5015`**. Same idea as ShareVault / School ERP.
 - **Frontend is a Vite SPA**, so `npm run build` gives a static `client/dist/` that Nginx serves directly (like your other React apps). No second Node process.
 - **One domain, no `api.` subdomain.** Login uses an httpOnly cookie, which is simplest when site and API share the same origin. Nginx sends `/api/*` to Node and everything else to `dist/`. So: **one DNS record, one server block, no CORS config**.
 - **Videos live on disk, not in Mongo and not in git.** They go in `/var/media/matinee/` (folders there = folders on the site). Mongo stores only metadata (title, folder, duration). Check disk space before you start.
@@ -13,10 +13,10 @@ Different shape from your other projects, worth reading Part 0 before starting:
 - **The CI/CD workflow builds directly on the VPS** (same as Clipboard Cloud), so a deploy briefly uses extra CPU/RAM while `vite build` runs.
 - **Bandwidth is the real limit.** Each 1080p viewer pulls roughly 5 Mbit/s from the VPS, so check your Bluehost bandwidth cap.
 
-Ports in use on this VPS so far: ShareVault `5000`, GitHub Analyzer `5001`, Codebase Detective `4005`, Zip Router `5002`, Assessment Platform `5003`, InterviewVault `5004`, BrainVault `5005`, School ERP `5006`, MythLok `5007`, Clipboard Cloud `5008` (+ its Next.js on `3000`). Matinee uses **`5009`**. Confirm it's free:
+Ports in use on this VPS so far: ShareVault `5000`, GitHub Analyzer `5001`, Codebase Detective `4005`, Zip Router `5002`, Assessment Platform `5003`, InterviewVault `5004`, BrainVault `5005`, School ERP `5006`, MythLok `5007`, Clipboard Cloud `5008` (+ its Next.js on `3000`). Matinee uses **`5015`**. Confirm it's free:
 
 ```bash
-sudo lsof -i :5009
+sudo lsof -i :5015
 ```
 
 Run everything over SSH:
@@ -124,7 +124,7 @@ Paste this, then fill in every `<...>`:
 
 ```bash
 # ── Server ──────────────────────────────────────────────
-PORT=5009
+PORT=5015
 
 # ── MongoDB Atlas ───────────────────────────────────────
 # Required to boot. Reuse your existing cluster, new database name.
@@ -215,10 +215,10 @@ CHECK:
 pm2 logs matinee-api --lines 30
 ```
 
-Should show `MongoDB connected`, `Redis connected` and `Matinee API on :5009  media: /var/media/matinee`. Repeated Mongo errors mean `MONGO_URI` or the Atlas IP allowlist is wrong. Then:
+Should show `MongoDB connected`, `Redis connected` and `Matinee API on :5015  media: /var/media/matinee`. Repeated Mongo errors mean `MONGO_URI` or the Atlas IP allowlist is wrong. Then:
 
 ```bash
-curl http://localhost:5009/api/auth/me
+curl http://localhost:5015/api/auth/me
 ```
 
 Should return `{"authenticated":false,"publicBrowsing":false}`.
@@ -273,7 +273,7 @@ server {
     }
 
     location /api/ {
-        proxy_pass http://localhost:5009;
+        proxy_pass http://localhost:5015;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;

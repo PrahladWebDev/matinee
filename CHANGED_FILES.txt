@@ -1,0 +1,24 @@
+MATINEE UI UPDATE - files in this zip
+Extract into your project ROOT (the folder that contains client/ and server/) and choose "Replace".
+
+NEW files
+  client/src/format.js
+  client/src/components/Hero.jsx
+  client/src/components/Skeleton.jsx
+  UPLOAD_WITH_WINSCP.md
+
+REPLACED files
+  client/src/styles.css
+  client/src/components/Icon.jsx
+  client/src/components/Navbar.jsx
+  client/src/components/Row.jsx
+  client/src/components/VideoCard.jsx
+  client/src/components/FolderCard.jsx
+  client/src/pages/Home.jsx
+  client/src/pages/Folder.jsx
+  server/src/routes/library.js     (adds /api/poster/:id for sharp hero images)
+  server/src/routes/admin.js       (also removes the HD poster when a video is deleted)
+  server/src/utils/media.js        (HD poster helpers)
+
+After copying: git add . && git commit -m "UI redesign" && git push
+GitHub Actions rebuilds the client and reloads the API. No .env changes needed.

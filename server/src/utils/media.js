@@ -28,6 +28,9 @@ export function absPath(rel) {
 }
 
 export const thumbPath = (id) => path.join(config.mediaRoot, '.thumbs', `${id}.jpg`);
+export const hdPath = (id) => path.join(config.mediaRoot, '.thumbs', `${id}-hd.jpg`);
+export const removeThumbs = (id) =>
+  Promise.all([fsp.rm(thumbPath(id), { force: true }), fsp.rm(hdPath(id), { force: true })]);
 
 export async function exists(p) {
   try { await fsp.access(p); return true; } catch { return false; }

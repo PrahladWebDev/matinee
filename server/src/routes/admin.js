@@ -10,7 +10,7 @@ import { config } from '../config.js';
 import { invalidate } from '../cache.js';
 import { requireAuth } from '../middleware/auth.js';
 import { ah } from '../utils/ah.js';
-import { VIDEO_EXT, absPath, esc, exists, queueProcess, safeName, thumbPath } from '../utils/media.js';
+import { VIDEO_EXT, absPath, esc, exists, queueProcess, removeThumbs, safeName } from '../utils/media.js';
 
 const r = Router();
 r.use(requireAuth);
@@ -69,7 +69,7 @@ r.delete('/folders/:id', ah(async (req, res) => {
   if (!f) return bad(res, 404, 'Folder not found');
   const rx = { $regex: '^' + esc(f.path) + '/' };
   const vids = await Video.find({ relPath: rx }).select('_id');
-  await Promise.all(vids.map((v) => fsp.rm(thumbPath(v._id), { force: true })));
+  await Promise.all(vids.map((v) => removeThumbs(v._id)));
   await Video.deleteMany({ relPath: rx });
   await Folder.deleteMany({ $or: [{ _id: f._id }, { path: rx }] });
   await fsp.rm(absPath(f.path), { recursive: true, force: true });
@@ -144,7 +144,7 @@ r.delete('/videos/:id', ah(async (req, res) => {
   const v = await Video.findById(req.params.id);
   if (!v) return bad(res, 404, 'Video not found');
   await fsp.rm(absPath(v.relPath), { force: true });
-  await fsp.rm(thumbPath(v._id), { force: true });
+  await removeThumbs(v._id);
   await v.deleteOne();
   invalidate();
   res.json({ ok: true });
@@ -182,7 +182,7 @@ r.post('/scan', ah(async (req, res) => {
   }
   await walk('', null);
   for (const v of await Video.find().select('relPath')) {
-    if (!fs.existsSync(absPath(v.relPath))) { await fsp.rm(thumbPath(v._id), { force: true }); await v.deleteOne(); stats.removed++; }
+    if (!fs.existsSync(absPath(v.relPath))) { await removeThumbs(v._id); await v.deleteOne(); stats.removed++; }
   }
   for (const f of await Folder.find().select('path')) {
     if (!fs.existsSync(absPath(f.path))) await f.deleteOne();

@@ -1,10 +1,27 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../App';
-import Icon from '../components/Icon';
+import Hero from '../components/Hero';
 import Row from '../components/Row';
+import { HeroSkeleton, RowSkeleton } from '../components/Skeleton';
 import { continueList } from '../progress';
+
+// pick up to 5 featured videos (prefer ones that have a thumbnail), shuffled
+function pickFeatured(data) {
+  const pool = [];
+  data.rows.forEach((r) => r.videos.forEach((v) => pool.push({ ...v, folderId: r.folder._id, folderName: r.folder.name })));
+  data.loose.forEach((v) => pool.push(v));
+  const seen = new Set();
+  const uniq = pool.filter((v) => (seen.has(v._id) ? false : (seen.add(v._id), true)));
+  const good = uniq.filter((v) => v.hasThumb);
+  const src = good.length >= 3 ? good : uniq;
+  for (let i = src.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [src[i], src[j]] = [src[j], src[i]];
+  }
+  return src.slice(0, 5);
+}
 
 export default function Home() {
   const [data, setData] = useState(null);
@@ -13,43 +30,49 @@ export default function Home() {
   const auth = useAuth();
   const resume = continueList();
 
-  useEffect(() => { api.home().then(setData).catch((e) => setErr(e.message)); document.title = 'Matinee'; }, []);
+  useEffect(() => {
+    document.title = 'Matinee';
+    api.home().then(setData).catch((e) => setErr(e.message));
+  }, []);
+
+  const featured = useMemo(() => (data ? pickFeatured(data) : []), [data]);
 
   const surprise = async (folder) => {
-    try { const v = await api.random(folder); nav('/watch/' + v._id); } catch (e) { alert(e.message); }
+    try { const v = await api.random(typeof folder === 'string' ? folder : undefined); nav('/watch/' + v._id); }
+    catch (e) { alert(e.message); }
   };
 
   if (err) return <div className="page"><div className="error">{err}</div></div>;
-  if (!data) return <div className="page muted">Loading…</div>;
+  if (!data) {
+    return (
+      <div className="home">
+        <HeroSkeleton />
+        <div className="rows"><RowSkeleton /><RowSkeleton /></div>
+      </div>
+    );
+  }
 
   return (
-    <div className="page">
-      <section className="hero">
-        <div>
-          <h1>What are we watching tonight?</h1>
-          <p className="muted">{data.total} {data.total === 1 ? 'video' : 'videos'} in your library.</p>
-        </div>
-        <div className="hero-actions">
-          <button className="btn accent big" onClick={() => surprise()} disabled={!data.total}><Icon name="shuffle" size={20} /> Play something random</button>
-          {resume[0] && <Link className="btn big" to={`/watch/${resume[0].id}`}><Icon name="play" size={20} /> Resume “{resume[0].title.length > 28 ? resume[0].title.slice(0, 28) + '…' : resume[0].title}”</Link>}
-        </div>
-      </section>
+    <div className="home">
+      {featured.length > 0 ? <Hero items={featured} onRandom={() => surprise()} /> : <div className="home-top" />}
 
       {!data.total && (
         <div className="empty">
-          <h2>Nothing here yet</h2>
-          <p>{auth.authenticated ? <>Open <Link to="/admin">Admin</Link> to create a folder and upload your first video.</> : 'Log in to add videos.'}</p>
+          <h2>Your screen is empty</h2>
+          <p>{auth.authenticated ? <>Open <Link to="/admin">Admin</Link> to create a folder and add your first video.</> : 'Log in to add videos.'}</p>
         </div>
       )}
 
-      {resume.length > 0 && (
-        <Row title="Continue watching" videos={resume.map((p) => ({ _id: p.id, title: p.title, duration: p.d, hasThumb: p.thumb }))} />
-      )}
-      {data.recent.length > 0 && <Row title="Recently added" videos={data.recent} />}
-      {data.rows.map((r) => (
-        <Row key={r.folder._id} title={r.folder.name} to={`/folder/${r.folder._id}`} videos={r.videos} onRandom={() => surprise(r.folder._id)} />
-      ))}
-      {data.loose.length > 0 && <Row title="More videos" videos={data.loose} />}
+      <div className="rows">
+        {resume.length > 0 && (
+          <Row title="Continue watching" videos={resume.map((p) => ({ _id: p.id, title: p.title, duration: p.d, hasThumb: p.thumb }))} />
+        )}
+        {data.recent.length > 0 && <Row title="Recently added" videos={data.recent} />}
+        {data.rows.map((r) => (
+          <Row key={r.folder._id} title={r.folder.name} to={`/folder/${r.folder._id}`} videos={r.videos} onRandom={() => surprise(r.folder._id)} />
+        ))}
+        {data.loose.length > 0 && <Row title="More videos" videos={data.loose} />}
+      </div>
     </div>
   );
 }
