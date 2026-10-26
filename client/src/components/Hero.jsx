@@ -6,8 +6,7 @@ import { cleanTitle } from '../format';
 
 const canPreview = () =>
   typeof window !== 'undefined' &&
-  window.matchMedia?.('(hover: hover) and (pointer: fine)').matches &&
-  !window.matchMedia('(prefers-reduced-motion: reduce)').matches &&
+  !window.matchMedia?.('(prefers-reduced-motion: reduce)').matches &&
   !navigator.connection?.saveData;
 
 /** Full-width featured banner: crossfading posters, slow zoom, muted preview, auto-rotate. */
@@ -48,6 +47,7 @@ export default function Hero({ items, onRandom }) {
         {showVid && (
           <video key={cur._id} ref={vref} className={`hero2-vid${vidOn ? ' on' : ''}`}
             src={`/api/stream/${cur._id}#t=${start}`} autoPlay loop muted playsInline preload="auto"
+            onLoadedData={(e) => { e.currentTarget.muted = muted; e.currentTarget.play().catch(() => {}); }}
             onPlaying={() => setVidOn(true)}
             onTimeUpdate={(e) => { if (e.currentTarget.currentTime > start + 40) e.currentTarget.currentTime = start; }} />
         )}

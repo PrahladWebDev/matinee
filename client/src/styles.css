@@ -318,7 +318,6 @@ input:focus,select:focus{border-color:var(--accent);box-shadow:0 0 0 3px #9b6bff
 @media (max-width:760px){
   :root{--nav-h:58px}
   body{font-size:14.5px}
-  .logo{font-size:21px}.logo-text{display:none}
   .search.open{width:min(260px,58vw)}
   .watch{padding:calc(var(--nav-h) + 6px) 0 50px;gap:14px}
   .watch-main{min-width:0}
@@ -384,3 +383,16 @@ html.no-scroll,html.no-scroll body{overflow:hidden;overscroll-behavior:none}
   .p-end-btns{flex-direction:row!important;max-width:none!important;margin-top:8px;gap:6px}
   .p-end-btns .btn{width:auto!important;padding:8px 12px;font-size:13px}
 }
+
+/* ============ mobile header: logo text + Home/Admin links visible ============ */
+@media (max-width:760px){
+  .nav{gap:6px}
+  .logo{font-size:18px;gap:7px}
+  .logo-mark{width:26px;height:26px}
+  .navlink.hide-sm{display:inline-block}
+  .navlink{font-size:12.5px;padding:6px 2px}
+  .nav .btn.sm{padding:7px 9px}
+  .search,.search-ic{width:36px;height:36px}
+  .search.open{position:absolute;left:var(--pad);right:var(--pad);top:11px;width:auto;height:36px;background:#0d0d14;border-color:#ffffff40;z-index:3}
+}
+@media (max-width:340px){.logo-text{display:none}}
