@@ -526,3 +526,50 @@ body{position:relative}
 .login-card p{text-align:center}
 .share-top .logo-img{height:30px}
 @media (max-width:760px){ .logo-img{height:28px} }
+
+/* ---------- admin page: no sideways scroll on phones (keeps the floating tab bar steady) ---------- */
+.page.admin{min-width:0;overflow-x:clip}
+.panel{min-width:0;max-width:100%}
+.panel code{overflow-wrap:anywhere;word-break:break-all}
+.panel select{max-width:100%}
+@media (max-width:760px){
+  .form-row>input{min-width:0;flex:1 1 100%}
+  .form-row>label{min-width:0;max-width:100%}
+  .form-row .btn{flex:1 1 auto}
+
+  /* list rows: title on its own line, the rest wraps underneath */
+  .tree li{flex-wrap:wrap;row-gap:6px}
+  .tree li .grow-text{flex:1 1 100%}
+  .tree li .grow{display:none}
+  .tree li select{flex:1 1 auto;min-width:0}
+
+  /* upload queue: name on top, progress / status / remove underneath */
+  .q-item{grid-template-columns:minmax(0,1fr) 56px 28px;gap:8px 10px}
+  .q-main{grid-column:1 / -1}
+  .q-status{text-align:right}
+}
+
+/* ---------- private folders + admin library tree ---------- */
+.small{font-size:13px}
+.badge{display:inline-flex;align-items:center;gap:4px;flex:none;padding:2px 9px;border-radius:999px;font:600 11.5px var(--sans);border:1px solid var(--line);color:var(--muted)}
+.badge.priv{color:#ffc27a;border-color:#6b4a1f;background:#2a1d0c}
+.badge.pub{color:#8fd6a5;border-color:#24503a;background:#0f2118}
+.lockbadge{position:absolute;top:10px;left:10px;display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;background:#000b;border:1px solid #ffffff30;font:600 12px var(--sans);color:#ffc27a;z-index:2}
+.private-note{display:flex;align-items:center;gap:7px;margin:4px 0 8px;color:#ffc27a;font-size:13.5px;max-width:60ch}
+.tree.lib{margin-top:6px}
+.tree.lib li.lib-folder{display:block;padding:0;border-bottom:0}
+.tree.lib li.lib-folder:hover{background:none}
+.lib-head{display:flex;align-items:center;gap:10px;padding:9px 6px;border-bottom:1px solid var(--line)}
+.lib-head:hover{background:#ffffff08}
+.caret{background:none;border:0;color:var(--muted);font-size:16px;width:26px;height:26px;cursor:pointer;flex:none;border-radius:6px}
+.caret:hover{color:#fff;background:#ffffff14}
+.lib-name{display:flex;align-items:center;gap:8px;min-width:0;background:none;border:0;color:var(--text);font:700 15px var(--sans);cursor:pointer;padding:0;text-align:left}
+.lib-children{list-style:none;margin:0 0 0 13px;padding:0 0 0 12px;border-left:1px solid var(--line);display:grid}
+.lib-children li.lib-video{padding-left:6px}
+.lib-empty{padding:9px 6px}
+@media (max-width:760px){
+  .lib-head{flex-wrap:wrap;row-gap:4px}
+  .lib-head .grow{display:none}
+  .lib-name{flex:1 1 calc(100% - 44px)}
+  .lib-children{margin-left:8px;padding-left:8px}
+}

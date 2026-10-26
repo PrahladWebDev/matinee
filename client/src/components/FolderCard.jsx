@@ -9,6 +9,7 @@ export default function FolderCard({ f, i = 0 }) {
       <div className="thumb">
         {f.cover && !bad ? <img loading="lazy" src={`/api/thumb/${f.cover}`} alt="" onError={() => setBad(true)} /> : <div className="ph"><Icon name="folder" size={34} /></div>}
         <div className="fshade" />
+        {f.isPrivate && <span className="lockbadge" title="Private folder"><Icon name="lock" size={13} /> Private</span>}
         <span className="fname">{f.name}</span>
         <span className="fcount"><Icon name="folder" size={13} /> {f.videoCount} {f.videoCount === 1 ? 'video' : 'videos'}</span>
       </div>

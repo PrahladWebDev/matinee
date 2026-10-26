@@ -40,6 +40,7 @@ export default function Folder() {
             ))}
           </nav>
           <h1>{data.folder.name}</h1>
+          {data.folder.isPrivate && <p className="private-note"><Icon name="lock" size={14} /> Private folder — hidden from Home, search and random shuffle. Videos play only from here.</p>}
           <p className="muted">{total} {total === 1 ? 'video' : 'videos'}{data.folders.length > 0 && ` · ${data.folders.length} ${data.folders.length === 1 ? 'folder' : 'folders'}`}</p>
           <div className="hero-actions">
             {(data.videos[0] || total > 0) && (

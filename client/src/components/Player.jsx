@@ -66,7 +66,7 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
     prefetched.current = false;
     return () => {
       // remember where we stopped
-      if (v.currentTime > 3 && v.duration) saveProgress(video._id, { t: v.currentTime, d: v.duration, title: video.title, thumb: video.hasThumb });
+      if (v.currentTime > 3 && v.duration) saveProgress(video._id, { t: v.currentTime, d: v.duration, title: video.title, thumb: video.hasThumb, priv: !!video.priv });
     };
   }, [video._id]); // eslint-disable-line
 
@@ -229,7 +229,7 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
     readBuffered();
     if (Date.now() - lastSave.current > 4000 && v.duration) {
       lastSave.current = Date.now();
-      saveProgress(video._id, { t: v.currentTime, d: v.duration, title: video.title, thumb: video.hasThumb });
+      saveProgress(video._id, { t: v.currentTime, d: v.duration, title: video.title, thumb: video.hasThumb, priv: !!video.priv });
     }
     // warm the next episode's first bytes so it starts instantly
     if (prefetchSrc && !prefetched.current && v.duration && v.currentTime / v.duration > 0.8) {

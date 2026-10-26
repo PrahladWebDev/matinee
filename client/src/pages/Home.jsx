@@ -29,8 +29,8 @@ export default function Home() {
   const [err, setErr] = useState('');
   const nav = useNavigate();
   const auth = useAuth();
-  const resume = continueList();
-  const myList = useMyList();
+  const resume = continueList().filter((p) => !p.priv);       // videos from private folders never show on Home
+  const myList = useMyList().filter((v) => !v.priv);
 
   useEffect(() => {
     document.title = 'Matinee';

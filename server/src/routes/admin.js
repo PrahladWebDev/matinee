@@ -18,13 +18,13 @@ r.use(requireAuth);
 const posix = path.posix;
 const bad = (res, code, error) => res.status(code).json({ error });
 
-async function ensureFolder(name, parent) {
+async function ensureFolder(name, parent, isPrivate = false) {
   const dirName = safeName(name);
   const rel = parent ? `${parent.path}/${dirName}` : dirName;
   let f = await Folder.findOne({ path: rel });
   if (!f) {
     await fsp.mkdir(absPath(rel), { recursive: true });
-    f = await Folder.create({ name: String(name).trim() || dirName, dirName, parent: parent?._id || null, path: rel });
+    f = await Folder.create({ name: String(name).trim() || dirName, dirName, parent: parent?._id || null, path: rel, isPrivate: !!isPrivate });
   }
   return f;
 }
@@ -34,12 +34,21 @@ r.get('/folders', ah(async (req, res) => {
   res.json(await Folder.find().sort('path').lean());
 }));
 
+// everything for the admin tree in one go: all folders + every video's basic info
+r.get('/library', ah(async (req, res) => {
+  const [folders, videos] = await Promise.all([
+    Folder.find().sort('path').lean(),
+    Video.find().select('title folder duration size').lean(),
+  ]);
+  res.json({ folders, videos });
+}));
+
 r.post('/folders', ah(async (req, res) => {
-  const { name, parent } = req.body || {};
+  const { name, parent, isPrivate } = req.body || {};
   if (!name?.trim()) return bad(res, 400, 'Folder name is required');
   let p = null;
   if (parent) { p = await Folder.findById(parent); if (!p) return bad(res, 404, 'Parent folder not found'); }
-  const f = await ensureFolder(name, p);
+  const f = await ensureFolder(name, p, isPrivate);
   invalidate();
   res.status(201).json(f);
 }));
@@ -59,6 +68,7 @@ r.patch('/folders/:id', ah(async (req, res) => {
   const f = await Folder.findById(req.params.id);
   if (!f) return bad(res, 404, 'Folder not found');
   if (req.body?.name?.trim()) f.name = req.body.name.trim();
+  if (typeof req.body?.isPrivate === 'boolean') f.isPrivate = req.body.isPrivate;
   await f.save();
   invalidate();
   res.json(f);

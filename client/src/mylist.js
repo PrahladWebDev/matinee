@@ -16,7 +16,7 @@ export const inList = (id) => cache.some((v) => v._id === id);
 export function toggleList(v) {
   cache = inList(v._id)
     ? cache.filter((x) => x._id !== v._id)
-    : [{ _id: v._id, title: v.title, duration: v.duration || 0, hasThumb: !!v.hasThumb }, ...cache].slice(0, 200);
+    : [{ _id: v._id, title: v.title, duration: v.duration || 0, hasThumb: !!v.hasThumb, priv: !!v.priv }, ...cache].slice(0, 200);
   try { localStorage.setItem(KEY, JSON.stringify(cache)); } catch {}
   emit();
 }

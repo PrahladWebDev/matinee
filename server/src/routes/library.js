@@ -8,6 +8,7 @@ import { optionalAuth, requireAuth } from '../middleware/auth.js';
 import { ah } from '../utils/ah.js';
 import { esc, getPoster, thumbPath } from '../utils/media.js';
 import { sendVideo } from '../utils/stream.js';
+import { all, isPrivatePath, privatePaths, visible } from '../utils/privacy.js';
 
 const r = Router();
 const gate = config.publicBrowsing ? optionalAuth : requireAuth;
@@ -30,10 +31,12 @@ async function crumbs(folder) {
 // Home: rows per top-level folder + recently added
 r.get('/home', gate, ah(async (req, res) => {
   res.json(await cached('home', async () => {
-    const recent = await Video.find().sort('-createdAt').limit(20).select(FIELDS).lean();
-    const roots = (await Folder.find({ parent: null }).lean()).sort((a, b) => collator.compare(a.name, b.name));
+    const paths = await privatePaths();
+    const vis = visible(paths);
+    const recent = await Video.find(vis).sort('-createdAt').limit(20).select(FIELDS).lean();
+    const roots = (await Folder.find({ parent: null, isPrivate: { $ne: true } }).lean()).sort((a, b) => collator.compare(a.name, b.name));
     const rows = (await Promise.all(roots.map(async (f) => {
-      const q = subtree(f);
+      const q = all(subtree(f), vis);
       const [videos, count] = await Promise.all([
         Video.find(q).limit(50).select(FIELDS).lean(),
         Video.countDocuments(q),
@@ -41,33 +44,42 @@ r.get('/home', gate, ah(async (req, res) => {
       return count ? { folder: { _id: f._id, name: f.name }, count, videos: videos.sort(byTitle) } : null;
     }))).filter(Boolean);
     const loose = (await Video.find({ folder: null }).limit(50).select(FIELDS).lean()).sort(byTitle);
-    return { recent, rows, loose, total: await Video.estimatedDocumentCount() };
+    return { recent, rows, loose, total: await Video.countDocuments(vis) };
   }));
 }));
 
 // Folder contents (id or "root")
 r.get('/folders/:id', gate, ah(async (req, res) => {
   const id = req.params.id;
-  const data = await cached('folder:' + id, async () => {
+  // private folders: only for a logged-in viewer (matters when PUBLIC_BROWSING=true)
+  if (!req.user && id !== 'root' && isId(id)) {
+    const f = await Folder.findById(id).select('path').lean();
+    if (f && isPrivatePath(await privatePaths(), f.path)) return res.status(404).json({ error: 'Folder not found' });
+  }
+  const data = await cached('folder:' + id + (req.user ? '' : ':anon'), async () => {
     let folder = null;
     if (id !== 'root') {
       if (!isId(id)) return null;
       folder = await Folder.findById(id).lean();
       if (!folder) return null;
     }
+    const paths = await privatePaths();
+    const vis = visible(paths);
     const subs = (await Folder.find({ parent: folder ? folder._id : null }).lean())
-      .sort((a, b) => collator.compare(a.name, b.name));
+      .sort((a, b) => collator.compare(a.name, b.name))
+      .filter((s) => req.user || !isPrivatePath(paths, s.path));
     const folders = await Promise.all(subs.map(async (s) => {
-      const q = subtree(s);
+      const priv = isPrivatePath(paths, s.path);
+      const q = priv ? subtree(s) : all(subtree(s), vis);   // inside a private folder everything counts
       const [videoCount, cover] = await Promise.all([
         Video.countDocuments(q),
         Video.findOne({ ...q, hasThumb: true }).select('_id').lean(),
       ]);
-      return { _id: s._id, name: s.name, videoCount, cover: cover?._id || null };
+      return { _id: s._id, name: s.name, videoCount, cover: cover?._id || null, isPrivate: priv };
     }));
     const videos = (await Video.find({ folder: folder ? folder._id : null }).select(FIELDS).lean()).sort(byTitle);
     return {
-      folder: folder && { _id: folder._id, name: folder.name, parent: folder.parent },
+      folder: folder && { _id: folder._id, name: folder.name, parent: folder.parent, isPrivate: isPrivatePath(paths, folder.path) },
       breadcrumbs: folder ? await crumbs(folder) : [],
       folders,
       videos,
@@ -81,9 +93,16 @@ r.get('/folders/:id', gate, ah(async (req, res) => {
 r.get('/videos/:id', gate, ah(async (req, res) => {
   const id = req.params.id;
   if (!isId(id)) return res.status(404).json({ error: 'Video not found' });
+  if (!req.user) {
+    const x = await Video.findById(id).select('relPath').lean();
+    if (x && isPrivatePath(await privatePaths(), x.relPath)) return res.status(404).json({ error: 'Video not found' });
+  }
   const data = await cached('watch:' + id, async () => {
-    const video = await Video.findById(id).select(FIELDS).lean();
-    if (!video) return null;
+    const found = await Video.findById(id).select(FIELDS + ' relPath').lean();
+    if (!found) return null;
+    const { relPath, ...rest } = found;
+    // priv = lives in a private folder (the client keeps it out of Continue Watching / My List on Home)
+    const video = { ...rest, priv: isPrivatePath(await privatePaths(), relPath) };
     const folder = video.folder ? await Folder.findById(video.folder).lean() : null;
     const playlist = (await Video.find({ folder: video.folder }).select('title duration hasThumb').lean()).sort(byTitle);
     const i = playlist.findIndex((v) => String(v._id) === id);
@@ -104,13 +123,18 @@ r.get('/videos/:id', gate, ah(async (req, res) => {
 r.get('/random', gate, ah(async (req, res) => {
   const { folder, exclude } = req.query;
   const match = {};
+  const paths = await privatePaths();
+  let inPrivate = false;   // shuffling inside a private folder is fine - that is playing it directly
   if (folder && folder !== 'root') {
     if (!isId(folder)) return res.status(400).json({ error: 'Bad folder' });
     const f = await Folder.findById(folder).select('path').lean();
     if (!f) return res.status(404).json({ error: 'Folder not found' });
+    inPrivate = isPrivatePath(paths, f.path);
+    if (inPrivate && !req.user) return res.status(404).json({ error: 'Folder not found' });
     match.relPath = { $regex: '^' + esc(f.path) + '/' };
   }
-  const pick = () => Video.aggregate([{ $match: match }, { $sample: { size: 1 } }, { $project: { title: 1, folder: 1, hasThumb: 1, duration: 1 } }]);
+  const filter = () => all(match, inPrivate ? {} : visible(paths));
+  const pick = () => Video.aggregate([{ $match: filter() }, { $sample: { size: 1 } }, { $project: { title: 1, folder: 1, hasThumb: 1, duration: 1 } }]);
   if (exclude && isId(exclude)) match._id = { $ne: new mongoose.Types.ObjectId(exclude) };
   let [v] = await pick();
   if (!v && match._id) { delete match._id; [v] = await pick(); }
@@ -121,7 +145,8 @@ r.get('/random', gate, ah(async (req, res) => {
 r.get('/search', gate, ah(async (req, res) => {
   const q = String(req.query.q || '').trim().slice(0, 80);
   if (q.length < 2) return res.json([]);
-  res.json(await Video.find({ title: { $regex: esc(q), $options: 'i' } }).limit(40).select(FIELDS).lean());
+  const vis = visible(await privatePaths());
+  res.json(await Video.find(all({ title: { $regex: esc(q), $options: 'i' } }, vis)).limit(40).select(FIELDS).lean());
 }));
 
 r.get('/poster/:id', gate, ah(async (req, res) => {
@@ -147,6 +172,7 @@ r.get('/stream/:id', gate, ah(async (req, res) => {
   if (!isId(id)) return res.sendStatus(404);
   const v = await cached('v:' + id, () => Video.findById(id).select('relPath mimeType').lean());
   if (!v) return res.sendStatus(404);
+  if (!req.user && isPrivatePath(await privatePaths(), v.relPath)) return res.sendStatus(404);
   await sendVideo(req, res, v);
 }));
 
