@@ -6,6 +6,7 @@ import Hero from '../components/Hero';
 import Row from '../components/Row';
 import { HeroSkeleton, RowSkeleton } from '../components/Skeleton';
 import { continueList } from '../progress';
+import { useMyList } from '../mylist';
 
 // pick up to 5 featured videos (prefer ones that have a thumbnail), shuffled
 function pickFeatured(data) {
@@ -29,6 +30,7 @@ export default function Home() {
   const nav = useNavigate();
   const auth = useAuth();
   const resume = continueList();
+  const myList = useMyList();
 
   useEffect(() => {
     document.title = 'Matinee';
@@ -54,6 +56,11 @@ export default function Home() {
 
   return (
     <div className="home">
+      {data.rows.length > 0 && (
+        <div className="chips">
+          {data.rows.map((r) => <Link key={r.folder._id} to={`/folder/${r.folder._id}`}>{r.folder.name}</Link>)}
+        </div>
+      )}
       {featured.length > 0 ? <Hero items={featured} onRandom={() => surprise()} /> : <div className="home-top" />}
 
       {!data.total && (
@@ -65,8 +72,9 @@ export default function Home() {
 
       <div className="rows">
         {resume.length > 0 && (
-          <Row title="Continue watching" videos={resume.map((p) => ({ _id: p.id, title: p.title, duration: p.d, hasThumb: p.thumb }))} />
+          <Row title="Continue Watching" videos={resume.map((p) => ({ _id: p.id, title: p.title, duration: p.d, hasThumb: p.thumb }))} />
         )}
+        {myList.length > 0 && <Row title="My List" videos={myList} />}
         {data.recent.length > 0 && <Row title="Recently added" videos={data.recent} />}
         {data.rows.map((r) => (
           <Row key={r.folder._id} title={r.folder.name} to={`/folder/${r.folder._id}`} videos={r.videos} onRandom={() => surprise(r.folder._id)} />

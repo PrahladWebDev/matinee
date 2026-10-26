@@ -42,6 +42,7 @@ export default function VideoCard({ v, i = 0 }) {
           />
         )}
         {v.duration > 0 && <span className="dur">{fmt(v.duration)}</span>}
+        {pct > 1 && pct < 95 && <span className="resume-play"><Icon name="play" size={22} /></span>}
         {pct > 1 && pct < 95 && <i className="prog"><b style={{ width: pct + '%' }} /></i>}
         <div className="t-info"><span className="round"><Icon name="play" size={18} /></span></div>
       </div>

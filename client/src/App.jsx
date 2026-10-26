@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { api } from './api';
 import Navbar from './components/Navbar';
+import PlayerHost from './components/PlayerHost';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Folder from './pages/Folder';
@@ -37,6 +38,7 @@ export default function App() {
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+        <PlayerHost />
       </BrowserRouter>
     </Auth.Provider>
   );

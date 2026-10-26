@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import Icon from './Icon';
 import { fmt } from '../progress';
 import { cleanTitle } from '../format';
+import { toggleList, useMyList } from '../mylist';
 
 const canPreview = () =>
   typeof window !== 'undefined' &&
@@ -17,6 +18,7 @@ export default function Hero({ items, onRandom }) {
   const [vidOn, setVidOn] = useState(false);
   const [muted, setMuted] = useState(true);
   const vref = useRef(null);
+  const list = useMyList();
   const cur = items[i];
   const start = cur.duration > 60 ? Math.floor(cur.duration * 0.2) : 3;
 
@@ -64,8 +66,11 @@ export default function Hero({ items, onRandom }) {
         </p>
         <div className="hero2-actions">
           <Link to={`/watch/${cur._id}`} className="btn accent big"><Icon name="play" size={22} /> Play</Link>
-          <button className="btn glass big" onClick={onRandom}><Icon name="shuffle" size={20} /> Surprise me</button>
-          {cur.folderId && <Link to={`/folder/${cur.folderId}`} className="btn glass big"><Icon name="info" size={20} /> More like this</Link>}
+          <button className="btn glass big" onClick={() => toggleList(cur)}>
+            <Icon name={list.some((x) => x._id === cur._id) ? 'check' : 'plus'} size={22} /> My List
+          </button>
+          <button className="btn glass big hide-sm" onClick={onRandom}><Icon name="shuffle" size={20} /> Surprise me</button>
+          {cur.folderId && <Link to={`/folder/${cur.folderId}`} className="btn glass big hide-sm"><Icon name="info" size={20} /> More like this</Link>}
         </div>
       </div>
 

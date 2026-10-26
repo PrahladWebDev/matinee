@@ -13,7 +13,7 @@ const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
  * Custom player. Stays mounted while you move between episodes, so
  * fullscreen survives auto-play of the next video.
  */
-export default function Player({ video, src, onBack, onNext, onPrev, upNext, onPlayUpNext, onRandom, hasFolder, prefetchSrc }) {
+export default function Player({ video, src, onBack, onNext, onPrev, upNext, onPlayUpNext, onRandom, hasFolder, prefetchSrc, mini, onExpand, onClose }) {
   const vref = useRef(null);
   const box = useRef(null);
   const bar = useRef(null);
@@ -151,6 +151,7 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
   // ---- keyboard shortcuts ----
   useEffect(() => {
     const onKey = (e) => {
+      if (mini) return;   // shortcuts only while the full player is on screen
       if (e.ctrlKey || e.metaKey || e.altKey) return;
       if (e.target.matches?.('input[type=text],input[type=search],input[type=password],textarea,select')) return;
       const v = vref.current;
@@ -178,7 +179,7 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [toggle, seekBy, changeVol, toggleFull, pip, poke]);
+  }, [toggle, seekBy, changeVol, toggleFull, pip, poke, mini]);
 
   // ---- OS media keys / lock-screen controls ----
   useEffect(() => {
@@ -196,6 +197,8 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
     set('nexttrack', () => live.current.onNext?.());
     set('previoustrack', () => live.current.onPrev?.());
   }, [video._id, video.title, video.hasThumb, seekBy]);
+
+  useEffect(() => { if (mini) setCount(null); }, [mini]);   // never auto-jump while browsing
 
   // ---- up-next countdown ----
   useEffect(() => {
@@ -238,7 +241,7 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
   const onEnd = () => {
     clearProgress(video._id);
     setPlaying(false); setEnded(true); setShow(true);
-    if (upNext) setCount(5);
+    if (upNext && !mini) setCount(5);
   };
 
   // ---- seek bar ----
@@ -258,6 +261,7 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
 
   // ---- click / double-click / double-tap on the picture ----
   const onSurfaceClick = (e) => {
+    if (mini) { onExpand?.(); return; }
     if (menu) { setMenu(false); return; }
     const now = Date.now();
     const r = box.current.getBoundingClientRect();
@@ -283,7 +287,7 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
   const volIcon = muted || vol === 0 ? 'mute' : vol < 0.5 ? 'volumeLow' : 'volume';
 
   return (
-    <div ref={box} className={`player${ui ? ' ui' : ''}${isFull ? ' full' : ''}${pseudo ? ' pseudo' : ''}${fit !== 'fit' ? ' fit-' + fit : ''}`} onMouseMove={poke} onMouseLeave={() => playing && setShow(false)}>
+    <div ref={box} className={`player${ui ? ' ui' : ''}${isFull ? ' full' : ''}${pseudo ? ' pseudo' : ''}${mini ? ' mini' : ''}${fit !== 'fit' ? ' fit-' + fit : ''}`} onMouseMove={poke} onMouseLeave={() => playing && setShow(false)}>
       <video
         ref={vref}
         src={src}
@@ -407,6 +411,15 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
           <button className="p-btn" onClick={toggleFull} aria-label="Fullscreen"><Icon name={isFull ? 'fullExit' : 'full'} size={26} /></button>
         </div>
       </div>
+
+      {mini && (
+        <>
+          <button className="p-mini-btn p-mini-play" onClick={(e) => { e.stopPropagation(); toggle(); }} aria-label={playing ? 'Pause' : 'Play'}><Icon name={playing ? 'pause' : 'play'} size={22} /></button>
+          <button className="p-mini-btn p-mini-open" onClick={(e) => { e.stopPropagation(); onExpand?.(); }} aria-label="Expand"><Icon name="full" size={20} /></button>
+          <button className="p-mini-btn p-mini-close" onClick={(e) => { e.stopPropagation(); onClose?.(); }} aria-label="Close"><Icon name="close" size={20} /></button>
+          <div className="p-mini-bar"><b style={{ width: pct + '%' }} /></div>
+        </>
+      )}
     </div>
   );
 }

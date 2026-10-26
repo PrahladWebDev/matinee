@@ -40,33 +40,51 @@ export default function Navbar() {
 
   const solid = scrolled || pathname !== '/';
   const expanded = focus || q;
+  const hideTabs = pathname.startsWith('/watch');
+
+  // phones get a bottom tab bar (hidden while watching); reserve room for it
+  useEffect(() => {
+    document.body.classList.toggle('has-tabbar', !hideTabs);
+    return () => document.body.classList.remove('has-tabbar');
+  }, [hideTabs]);
+
+  // icon-only navigation, shared by the desktop header and the mobile tab bar
+  const icons = (
+    <>
+      <Link to="/" className={`ico${pathname === '/' ? ' on' : ''}`} aria-label="Home" title="Home"><Icon name="home" size={26} /></Link>
+      <button className="ico" onClick={surprise} aria-label="Surprise me" title="Surprise me"><Icon name="shuffle" size={26} /></button>
+      {auth.authenticated && <Link to="/admin" className={`ico${pathname === '/admin' ? ' on' : ''}`} aria-label="Admin" title="Admin"><Icon name="dashboard" size={25} /></Link>}
+      {auth.authenticated
+        ? <button className="ico" onClick={logout} aria-label="Log out" title="Log out"><Icon name="logout" size={25} /></button>
+        : <Link to="/login" className="ico" aria-label="Log in" title="Log in"><Icon name="login" size={26} /></Link>}
+    </>
+  );
 
   return (
-    <header className={`nav${solid ? ' solid' : ''}`}>
-      <Link to="/" className="logo"><span className="logo-mark"><Icon name="play" size={15} /></span><span className="logo-text">Matinee</span></Link>
-      <Link to="/" className={`navlink hide-sm${pathname === '/' ? ' on' : ''}`}>Home</Link>
-      {auth.authenticated && <Link to="/admin" className={`navlink hide-sm${pathname === '/admin' ? ' on' : ''}`}>Admin</Link>}
-      <span className="grow" />
+    <>
+      <header className={`nav${solid ? ' solid' : ''}`}>
+        <Link to="/" className="logo" aria-label="Matinee"><span className="logo-text">Matinee</span></Link>
+        <span className="grow" />
 
-      <div className={`search${expanded ? ' open' : ''}`}>
-        <button className="search-ic" aria-label="Search" onClick={() => { setFocus(true); input.current?.focus(); }}><Icon name="search" size={20} /></button>
-        <input ref={input} type="search" placeholder="Search videos" value={q}
-          onChange={(e) => setQ(e.target.value)}
-          onFocus={() => { setFocus(true); setOpen(true); }}
-          onBlur={() => setTimeout(() => { setFocus(false); setOpen(false); }, 160)} />
-        {open && res.length > 0 && (
-          <div className="search-res">
-            {res.map((v) => (
-              <Link key={v._id} to={`/watch/${v._id}`} onClick={() => { setOpen(false); setQ(''); }}>{cleanTitle(v.title)}</Link>
-            ))}
-          </div>
-        )}
-      </div>
+        <div className={`search${expanded ? ' open' : ''}`}>
+          <button className="search-ic" aria-label="Search" onClick={() => { setFocus(true); input.current?.focus(); }}><Icon name="search" size={24} /></button>
+          <input ref={input} type="search" placeholder="Search videos" value={q}
+            onChange={(e) => setQ(e.target.value)}
+            onFocus={() => { setFocus(true); setOpen(true); }}
+            onBlur={() => setTimeout(() => { setFocus(false); setOpen(false); }, 160)} />
+          {open && res.length > 0 && (
+            <div className="search-res">
+              {res.map((v) => (
+                <Link key={v._id} to={`/watch/${v._id}`} onClick={() => { setOpen(false); setQ(''); }}>{cleanTitle(v.title)}</Link>
+              ))}
+            </div>
+          )}
+        </div>
 
-      <button className="btn accent sm" onClick={surprise}><Icon name="shuffle" size={17} /> <span className="hide-xs">Surprise me</span></button>
-      {auth.authenticated
-        ? <button className="navlink" onClick={logout}>Log out</button>
-        : <Link to="/login" className="navlink">Log in</Link>}
-    </header>
+        <div className="nav-icons">{icons}</div>
+      </header>
+
+      {!hideTabs && <nav className="tabbar" aria-label="Main">{icons}</nav>}
+    </>
   );
 }
