@@ -20,7 +20,7 @@ export default function Share() {
   return (
     <div className="share-page">
       <header className="share-top">
-        <span className="logo"><span className="logo-mark"><Icon name="play" size={15} /></span><span className="logo-text">Matinee</span></span>
+        <span className="logo"><img className="logo-img" src="/logo-nav.png" alt="Matinee" /></span>
         <span className="share-tag"><Icon name="link" size={15} /> Shared with you</span>
       </header>
 

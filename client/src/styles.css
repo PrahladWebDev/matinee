@@ -518,3 +518,11 @@ body{position:relative}
   .hero2-shade{background:linear-gradient(0deg,#141414f2 4%,#14141400 62%),linear-gradient(180deg,#00000066,#00000000 20%)}
   .rows{margin-top:6px}
 }
+
+/* ---------- image logo (replaces the text wordmark) ---------- */
+.logo{line-height:0}
+.logo-img{display:block;height:clamp(26px,3vw,36px);width:auto;user-select:none;-webkit-user-drag:none}
+.login-logo{display:block;width:min(260px,80%);height:auto;margin:0 auto 6px}
+.login-card p{text-align:center}
+.share-top .logo-img{height:30px}
+@media (max-width:760px){ .logo-img{height:28px} }

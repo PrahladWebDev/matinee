@@ -22,7 +22,7 @@ export default function Login() {
   return (
     <div className="login">
       <form onSubmit={submit} className="login-card">
-        <h1>Matinee</h1>
+        <img className="login-logo" src="/logo.png" alt="Matinee" />
         <p className="muted">Your own screening room. Sign in to start watching.</p>
         <label>Username<input value={u} onChange={(e) => setU(e.target.value)} autoComplete="username" autoFocus /></label>
         <label>Password<input type="password" value={p} onChange={(e) => setP(e.target.value)} autoComplete="current-password" /></label>
