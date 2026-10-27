@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../App';
+import ThemeSwitcher from '../components/ThemeSwitcher';
 
 export default function Login() {
   const auth = useAuth();
@@ -21,6 +22,7 @@ export default function Login() {
 
   return (
     <div className="login">
+      <div className="theme-fab"><ThemeSwitcher /></div>
       <form onSubmit={submit} className="login-card">
         <img className="login-logo" src="/logo.png" alt="Matinee" />
         <p className="muted">Your own screening room. Sign in to start watching.</p>

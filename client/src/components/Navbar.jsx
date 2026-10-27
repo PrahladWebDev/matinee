@@ -3,6 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../App';
 import Icon from './Icon';
+import ThemeSwitcher from './ThemeSwitcher';
 import { cleanTitle } from '../format';
 
 export default function Navbar() {
@@ -53,6 +54,7 @@ export default function Navbar() {
     <>
       <Link to="/" className={`ico${pathname === '/' ? ' on' : ''}`} aria-label="Home" title="Home"><Icon name="home" size={26} /></Link>
       <button className="ico" onClick={surprise} aria-label="Surprise me" title="Surprise me"><Icon name="shuffle" size={26} /></button>
+      <ThemeSwitcher />
       {auth.authenticated && <Link to="/admin" className={`ico${pathname === '/admin' ? ' on' : ''}`} aria-label="Admin" title="Admin"><Icon name="dashboard" size={25} /></Link>}
       {auth.authenticated
         ? <button className="ico" onClick={logout} aria-label="Log out" title="Log out"><Icon name="logout" size={25} /></button>

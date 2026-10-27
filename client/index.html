@@ -3,10 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#141414" />
+    <meta name="theme-color" content="#0e1514" />
     <title>Matinee</title>
     <link rel="icon" type="image/png" href="/favicon.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <script>
+      // apply the saved theme before first paint (no flash)
+      (function () {
+        try {
+          var ids = ['cinema','light','nord','cream','vampire','forest','ocean','mocha'];
+          var t = localStorage.getItem('matinee-theme');
+          if (ids.indexOf(t) < 0) t = 'cinema';
+          document.documentElement.setAttribute('data-theme', t);
+          var m = { cinema:'#0e1514', light:'#f4f5f3', nord:'#2e3440', cream:'#f6eddb', vampire:'#1d1e29', forest:'#0f1a14', ocean:'#0b1622', mocha:'#1b1511' };
+          document.querySelector('meta[name="theme-color"]').setAttribute('content', m[t]);
+        } catch (e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
