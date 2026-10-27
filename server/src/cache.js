@@ -32,7 +32,11 @@ export async function cached(key, fn, ttl = config.cacheTtl) {
 }
 
 // Library is small & write-rarely, so any change just clears every cached key.
+const hooks = [];
+export const onInvalidate = (fn) => hooks.push(fn);   // other modules can drop their own small caches too
+
 export function invalidate() {
+  hooks.forEach((fn) => { try { fn(); } catch {} });
   if (!ready) return;
   const stream = redis.scanStream({ match: 'mt:*', count: 200 });
   stream.on('data', (keys) => { if (keys.length) redis.del(keys).catch(() => {}); });

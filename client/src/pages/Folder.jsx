@@ -4,23 +4,31 @@ import { api } from '../api';
 import Icon from '../components/Icon';
 import FolderCard from '../components/FolderCard';
 import VideoCard from '../components/VideoCard';
+import PinGate from '../components/PinGate';
 
 export default function Folder() {
   const { id } = useParams();
   const nav = useNavigate();
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
+  const [locked, setLocked] = useState(false);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
-    setData(null); setErr('');
+    setData(null); setErr(''); setLocked(false);
     window.scrollTo(0, 0);
-    api.folder(id).then((d) => { setData(d); document.title = d.folder.name + ' · Matinee'; }).catch((e) => setErr(e.message));
-  }, [id]);
+    api.folder(id)
+      .then((d) => { setData(d); document.title = d.folder.name + ' · Matinee'; })
+      .catch((e) => { if (e.locked) setLocked(true); else setErr(e.message); });
+  }, [id, tick]);
+
+  const lockNow = async () => { await api.lockPrivate().catch(() => {}); setTick((t) => t + 1); };
 
   const surprise = async () => {
     try { const v = await api.random(id); nav('/watch/' + v._id); } catch (e) { alert(e.message); }
   };
 
+  if (locked) return <PinGate onUnlocked={() => setTick((t) => t + 1)} />;
   if (err) return <div className="page"><div className="error">{err}</div></div>;
   if (!data) return <div className="page"><div className="sk sk-title" /><div className="grid">{Array.from({ length: 8 }).map((_, i) => <div key={i} className="thumb sk" />)}</div></div>;
 
@@ -40,7 +48,7 @@ export default function Folder() {
             ))}
           </nav>
           <h1>{data.folder.name}</h1>
-          {data.folder.isPrivate && <p className="private-note"><Icon name="lock" size={14} /> Private folder — hidden from Home, search and random shuffle. Videos play only from here.</p>}
+          {data.folder.isPrivate && <p className="private-note"><Icon name="lock" size={14} /> Private folder — hidden from Home, search and random shuffle. Videos play only from here.{data.pinSet && <> <button className="link" onClick={lockNow}>Lock now</button></>}</p>}
           <p className="muted">{total} {total === 1 ? 'video' : 'videos'}{data.folders.length > 0 && ` · ${data.folders.length} ${data.folders.length === 1 ? 'folder' : 'folders'}`}</p>
           <div className="hero-actions">
             {(data.videos[0] || total > 0) && (

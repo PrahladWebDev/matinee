@@ -6,10 +6,11 @@ async function call(method, path, data) {
   }
   const r = await fetch('/api' + path, opts);
   if (!r.ok) {
-    let msg = r.statusText;
-    try { msg = (await r.json()).error || msg; } catch {}
+    let msg = r.statusText, locked = false;
+    try { const j = await r.json(); msg = j.error || msg; locked = !!j.locked; } catch {}
     const e = new Error(msg);
     e.status = r.status;
+    e.locked = r.status === 403 && locked;   // private folder that needs its PIN
     throw e;
   }
   return r.json();
@@ -19,6 +20,16 @@ export const api = {
   me: () => call('GET', '/auth/me'),
   login: (username, password) => call('POST', '/auth/login', { username, password }),
   logout: () => call('POST', '/auth/logout', {}),
+
+  privateStatus: () => call('GET', '/private/status'),
+  unlockPrivate: (pin) => call('POST', '/private/unlock', { pin }),
+  lockPrivate: () => call('POST', '/private/lock', {}),
+  pinInfo: () => call('GET', '/admin/private-pin'),
+  setPin: (pin, current) => call('PUT', '/admin/private-pin', { pin, current }),
+  removePin: (current) => call('POST', '/admin/private-pin/remove', { current }),
+
+  audioTracks: (id) => call('GET', `/audio/${id}/tracks`),
+  audioStatus: (id, n) => call('GET', `/audio/${id}/${n}/status`),
 
   home: () => call('GET', '/home'),
   folder: (id) => call('GET', '/folders/' + (id || 'root')),

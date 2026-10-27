@@ -127,6 +127,46 @@ function PrivBadge({ priv, inherited }) {
   return <span className="badge priv" title={inherited ? 'Private because a parent folder is private' : 'Private folder'}><Icon name="lock" size={11} /> {inherited ? 'Private (inherited)' : 'Private'}</span>;
 }
 
+/* ---------------- private folder PIN ---------------- */
+function PrivatePin() {
+  const [set, setSet] = useState(null);
+  const [cur, setCur] = useState('');
+  const [pin, setPin] = useState('');
+  const [pin2, setPin2] = useState('');
+  const [msg, setMsg] = useState('');
+  const [ok, setOk] = useState('');
+  useEffect(() => { api.pinInfo().then((r) => setSet(r.pinSet)).catch(() => setSet(false)); }, []);
+
+  const save = async (e) => {
+    e.preventDefault(); setMsg(''); setOk('');
+    if (pin !== pin2) { setMsg('The two PINs do not match'); return; }
+    try { await api.setPin(pin, cur); setSet(true); setCur(''); setPin(''); setPin2(''); setOk('PIN saved. Private folders are locked until it is entered.'); }
+    catch (x) { setMsg(x.message); }
+  };
+  const remove = async () => {
+    setMsg(''); setOk('');
+    if (!confirm('Remove the PIN? Private folders will open without asking.')) return;
+    try { const r = await api.removePin(cur); setSet(r.pinSet); setCur(''); setOk(r.pinSet ? 'Saved PIN removed (a PIN from the server .env file is still active).' : 'PIN removed.'); }
+    catch (x) { setMsg(x.message); }
+  };
+
+  return (
+    <section className="panel">
+      <h2>Private folder PIN</h2>
+      <p className="muted">With a PIN set, private folders stay locked: their videos, pictures and counts are hidden until you enter the PIN. {set === false && 'No PIN is set yet, so private folders currently open without one.'}</p>
+      <form className="form-row" onSubmit={save}>
+        {set && <label>Current PIN<input type="password" autoComplete="off" value={cur} onChange={(e) => setCur(e.target.value)} /></label>}
+        <label>{set ? 'New PIN' : 'PIN'}<input type="password" autoComplete="new-password" maxLength={32} value={pin} onChange={(e) => setPin(e.target.value)} placeholder="4–32 letters or digits" /></label>
+        <label>Repeat PIN<input type="password" autoComplete="new-password" maxLength={32} value={pin2} onChange={(e) => setPin2(e.target.value)} /></label>
+        <button className="btn accent" disabled={pin.length < 4 || (set && !cur)}>{set ? 'Change PIN' : 'Set PIN'}</button>
+        {set && <button type="button" className="btn" disabled={!cur} onClick={remove}>Remove PIN</button>}
+      </form>
+      {msg && <div className="error">{msg}</div>}
+      {ok && <p className="ok">{ok}</p>}
+    </section>
+  );
+}
+
 /* ---------------- folders ---------------- */
 function Folders({ folders, reload }) {
   const [name, setName] = useState('');
@@ -164,7 +204,7 @@ function Folders({ folders, reload }) {
         </label>
         <button className="btn accent">Create folder</button>
       </form>
-      <p className="muted small">Private folders (and everything inside them) are kept off the Home page, search and random shuffle. Their videos play only when you open the folder directly.</p>
+      <p className="muted small">Private folders (and everything inside them) are kept off the Home page, search and random shuffle. Their videos play only when you open the folder directly, and with a PIN set (panel above) nothing inside shows until the PIN is entered.</p>
       {msg && <div className="error">{msg}</div>}
       <ul className="tree">
         {folders.map((f) => (
@@ -353,6 +393,7 @@ export default function Admin() {
     <div className="page admin">
       <h1>Admin</h1>
       <Uploader folders={folders} reload={reload} />
+      <PrivatePin />
       <Folders folders={folders} reload={reload} />
       <Library folders={folders} reload={reload} />
       <SharedLinks />

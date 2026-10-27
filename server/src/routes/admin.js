@@ -10,6 +10,8 @@ import { config } from '../config.js';
 import { invalidate } from '../cache.js';
 import { requireAuth } from '../middleware/auth.js';
 import { ah } from '../utils/ah.js';
+import rateLimit from 'express-rate-limit';
+import { pinIsSet, removePin, setPin, verifyPin, clearUnlock } from '../utils/pin.js';
 import { VIDEO_EXT, absPath, esc, exists, queueProcess, removeThumbs, safeName } from '../utils/media.js';
 
 const r = Router();
@@ -158,6 +160,30 @@ r.delete('/videos/:id', ah(async (req, res) => {
   await v.deleteOne();
   invalidate();
   res.json({ ok: true });
+}));
+
+// ---------- PIN for private folders ----------
+const pinLimit = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many tries. Try again in 15 minutes.' } });
+
+r.get('/private-pin', ah(async (req, res) => {
+  res.json({ pinSet: await pinIsSet() });
+}));
+
+// set or change the PIN (changing needs the current one). Every browser is locked again afterwards.
+r.put('/private-pin', pinLimit, ah(async (req, res) => {
+  const { pin, current } = req.body || {};
+  if (!/^[0-9A-Za-z]{4,32}$/.test(String(pin || ''))) return bad(res, 400, 'PIN must be 4 to 32 letters or digits');
+  if (await pinIsSet() && !(await verifyPin(current))) return bad(res, 403, 'Current PIN is wrong');
+  await setPin(pin);
+  clearUnlock(res);
+  res.json({ pinSet: true });
+}));
+
+r.post('/private-pin/remove', pinLimit, ah(async (req, res) => {
+  if (await pinIsSet() && !(await verifyPin(req.body?.current))) return bad(res, 403, 'Current PIN is wrong');
+  await removePin();
+  clearUnlock(res);
+  res.json({ pinSet: await pinIsSet() });   // stays true if PRIVATE_PIN is still set in .env
 }));
 
 // ---------- sharing ----------

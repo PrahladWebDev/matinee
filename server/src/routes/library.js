@@ -9,6 +9,17 @@ import { ah } from '../utils/ah.js';
 import { esc, getPoster, thumbPath } from '../utils/media.js';
 import { sendVideo } from '../utils/stream.js';
 import { all, isPrivatePath, privatePaths, visible } from '../utils/privacy.js';
+import { privGate } from '../middleware/priv.js';
+import { pinIsSet, refreshUnlock } from '../utils/pin.js';
+
+const LOCKED = { error: 'This folder is locked', locked: true };
+// 0 = fine; 404 = hidden from logged-out visitors; 403 = needs the private-folder PIN
+async function privBlock(req, relPath) {
+  if (!isPrivatePath(await privatePaths(), relPath)) return 0;
+  if (!req.user) return 404;
+  return req.privOk ? 0 : 403;
+}
+const videoRel = (id) => cached('v:' + id, () => Video.findById(id).select('relPath mimeType').lean());
 
 const r = Router();
 const gate = config.publicBrowsing ? optionalAuth : requireAuth;
@@ -49,12 +60,17 @@ r.get('/home', gate, ah(async (req, res) => {
 }));
 
 // Folder contents (id or "root")
-r.get('/folders/:id', gate, ah(async (req, res) => {
+r.get('/folders/:id', gate, privGate, ah(async (req, res) => {
   const id = req.params.id;
-  // private folders: only for a logged-in viewer (matters when PUBLIC_BROWSING=true)
-  if (!req.user && id !== 'root' && isId(id)) {
+  // private folders: logged-in viewers only, and with a PIN set only after the PIN was entered
+  if (id !== 'root' && isId(id)) {
     const f = await Folder.findById(id).select('path').lean();
-    if (f && isPrivatePath(await privatePaths(), f.path)) return res.status(404).json({ error: 'Folder not found' });
+    if (f) {
+      const b = await privBlock(req, f.path);
+      if (b === 404) return res.status(404).json({ error: 'Folder not found' });
+      if (b === 403) return res.status(403).json(LOCKED);
+      if (isPrivatePath(await privatePaths(), f.path)) await refreshUnlock(req, res);
+    }
   }
   const data = await cached('folder:' + id + (req.user ? '' : ':anon'), async () => {
     let folder = null;
@@ -86,16 +102,21 @@ r.get('/folders/:id', gate, ah(async (req, res) => {
     };
   });
   if (!data) return res.status(404).json({ error: 'Folder not found' });
-  res.json(data);
+  // while locked, private sub-folders show only their name: no cover picture, no video count
+  const out = req.privOk ? data : { ...data, folders: data.folders.map((f) => (f.isPrivate ? { ...f, cover: null, videoCount: 0, locked: true } : f)) };
+  res.json({ ...out, pinSet: await pinIsSet() });
 }));
 
 // Watch page data: video + sibling playlist + prev/next
-r.get('/videos/:id', gate, ah(async (req, res) => {
+r.get('/videos/:id', gate, privGate, ah(async (req, res) => {
   const id = req.params.id;
   if (!isId(id)) return res.status(404).json({ error: 'Video not found' });
-  if (!req.user) {
-    const x = await Video.findById(id).select('relPath').lean();
-    if (x && isPrivatePath(await privatePaths(), x.relPath)) return res.status(404).json({ error: 'Video not found' });
+  const x = await videoRel(id);
+  if (x) {
+    const b = await privBlock(req, x.relPath);
+    if (b === 404) return res.status(404).json({ error: 'Video not found' });
+    if (b === 403) return res.status(403).json(LOCKED);
+    if (isPrivatePath(await privatePaths(), x.relPath)) await refreshUnlock(req, res);
   }
   const data = await cached('watch:' + id, async () => {
     const found = await Video.findById(id).select(FIELDS + ' relPath').lean();
@@ -120,7 +141,7 @@ r.get('/videos/:id', gate, ah(async (req, res) => {
 }));
 
 // Random video. ?folder=<id> limits to that folder (and its sub-folders). ?exclude=<id> avoids repeats.
-r.get('/random', gate, ah(async (req, res) => {
+r.get('/random', gate, privGate, ah(async (req, res) => {
   const { folder, exclude } = req.query;
   const match = {};
   const paths = await privatePaths();
@@ -131,6 +152,7 @@ r.get('/random', gate, ah(async (req, res) => {
     if (!f) return res.status(404).json({ error: 'Folder not found' });
     inPrivate = isPrivatePath(paths, f.path);
     if (inPrivate && !req.user) return res.status(404).json({ error: 'Folder not found' });
+    if (inPrivate && !req.privOk) return res.status(403).json(LOCKED);
     match.relPath = { $regex: '^' + esc(f.path) + '/' };
   }
   const filter = () => all(match, inPrivate ? {} : visible(paths));
@@ -149,30 +171,38 @@ r.get('/search', gate, ah(async (req, res) => {
   res.json(await Video.find(all({ title: { $regex: esc(q), $options: 'i' } }, vis)).limit(40).select(FIELDS).lean());
 }));
 
-r.get('/poster/:id', gate, ah(async (req, res) => {
+r.get('/poster/:id', gate, privGate, ah(async (req, res) => {
   const id = req.params.id;
   if (!isId(id)) return res.sendStatus(404);
   const v = await Video.findById(id).select('relPath duration').lean();
   if (!v) return res.sendStatus(404);
+  const blocked = await privBlock(req, v.relPath);
+  if (blocked) return res.sendStatus(blocked);
   let file;
   try { file = await getPoster(v); } catch { file = thumbPath(id); }   // fall back to the small thumbnail
   res.sendFile(file, { dotfiles: 'allow', headers: { 'Cache-Control': 'private, max-age=604800' } },
     (err) => { if (err && !res.headersSent) res.sendStatus(404); });
 }));
 
-r.get('/thumb/:id', gate, (req, res) => {
+r.get('/thumb/:id', gate, privGate, ah(async (req, res) => {
   if (!isId(req.params.id)) return res.sendStatus(404);
+  const x = await videoRel(req.params.id);
+  if (!x) return res.sendStatus(404);
+  const blocked = await privBlock(req, x.relPath);
+  if (blocked) return res.sendStatus(blocked);
   res.sendFile(thumbPath(req.params.id), { dotfiles: 'allow', maxAge: '7d', headers: { 'Cache-Control': 'private, max-age=604800' } },
     (err) => { if (err && !res.headersSent) res.sendStatus(404); });
-});
+}));
 
 // Video streaming (login required unless PUBLIC_BROWSING=true)
-r.get('/stream/:id', gate, ah(async (req, res) => {
+r.get('/stream/:id', gate, privGate, ah(async (req, res) => {
   const id = req.params.id;
   if (!isId(id)) return res.sendStatus(404);
   const v = await cached('v:' + id, () => Video.findById(id).select('relPath mimeType').lean());
   if (!v) return res.sendStatus(404);
-  if (!req.user && isPrivatePath(await privatePaths(), v.relPath)) return res.sendStatus(404);
+  const blocked = await privBlock(req, v.relPath);
+  if (blocked) return res.status(blocked).json(blocked === 403 ? LOCKED : { error: 'Not found' });
+  if (isPrivatePath(await privatePaths(), v.relPath)) await refreshUnlock(req, res);   // keeps a long movie unlocked while it plays
   await sendVideo(req, res, v);
 }));
 

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
+import { api } from '../api';
 import { clearProgress, fmt, getProgress, saveProgress } from '../progress';
 
 const FITS = ['fit', 'fill', 'stretch'];
@@ -9,12 +10,27 @@ const getPrefs = () => { try { return JSON.parse(localStorage.getItem('mt_prefs'
 const setPrefs = (p) => { try { localStorage.setItem('mt_prefs', JSON.stringify({ ...getPrefs(), ...p })); } catch {} };
 const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
 
+// audio-language picker helpers
+const defaultTrack = (t) => (t.find((x) => x.default) || t[0])?.n ?? 0;
+function audLabel(t) {
+  let name = '';
+  if (t.lang) {
+    try { name = new Intl.DisplayNames(['en'], { type: 'language' }).of(t.lang) || ''; } catch { /* unknown code */ }
+    if (!name || name === t.lang) name = t.lang.toUpperCase();
+  }
+  const extra = [];
+  if (t.title && t.title.toLowerCase() !== name.toLowerCase()) extra.push(t.title);
+  if (t.channels > 2) extra.push(t.channels === 6 ? '5.1' : t.channels + 'ch');
+  return [name || `Track ${t.n + 1}`, ...extra].join(' · ');
+}
+
 /**
  * Custom player. Stays mounted while you move between episodes, so
  * fullscreen survives auto-play of the next video.
  */
 export default function Player({ video, src, onBack, onNext, onPrev, upNext, onPlayUpNext, onRandom, hasFolder, prefetchSrc, mini, onExpand, onClose }) {
   const vref = useRef(null);
+  const aref = useRef(null);       // separate <audio> used when another language is picked
   const box = useRef(null);
   const bar = useRef(null);
   const live = useRef({});
@@ -39,6 +55,16 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
   const [flash, setFlash] = useState(null);
   const [ended, setEnded] = useState(false);
   const [count, setCount] = useState(null);
+  const [tracks, setTracks] = useState([]);      // audio tracks found inside the video file
+  const [aud, setAud] = useState(null);          // null = the video's own audio, else index of the extra track in use
+  const [audBusy, setAudBusy] = useState(null);  // track being prepared on the server
+
+  const audOn = useRef(false);
+  const volRef = useRef(1);
+  const mutedRef = useRef(false);
+  const pick = useRef(0);
+  volRef.current = vol;
+  mutedRef.current = muted;
 
   const showRef = useRef(true);
   showRef.current = show;
@@ -63,6 +89,7 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
     v.defaultPlaybackRate = p.rate ?? 1;
     v.playbackRate = p.rate ?? 1;
     setCur(0); setDur(0); setBufs([]); setWait(true); setErr(false); setEnded(false); setCount(null);
+    pick.current++; setTracks([]); setAud(null); setAudBusy(null);
     prefetched.current = false;
     return () => {
       // remember where we stopped
@@ -93,12 +120,26 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
     flashIt(d > 0 ? 'fwd' : 'back', Math.abs(d) + 's');
   }, []);
 
+  // volume / mute go through these so they also steer the extra audio track when one is in use
+  const setVolume = useCallback((x) => {
+    x = clamp(x, 0, 1);
+    const v = vref.current, a = aref.current;
+    v.volume = x;
+    if (audOn.current) { if (a) a.volume = x; setVol(x); setPrefs({ volume: x }); }
+  }, []);
+  const setMute = useCallback((m) => {
+    const v = vref.current, a = aref.current;
+    if (audOn.current) { if (a) a.muted = m; setMuted(m); setPrefs({ muted: m }); }
+    else v.muted = m;
+  }, []);
+
   const changeVol = useCallback((d) => {
     const v = vref.current;
-    v.muted = false;
-    v.volume = clamp(v.volume + d, 0, 1);
-    flashIt('vol', Math.round(v.volume * 100) + '%');
-  }, []);
+    const next = clamp((audOn.current ? volRef.current : v.volume) + d, 0, 1);
+    setMute(false);
+    setVolume(next);
+    flashIt('vol', Math.round(next * 100) + '%');
+  }, [setMute, setVolume]);
 
   const toggleFull = useCallback(() => {
     const el = box.current;
@@ -165,7 +206,8 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
       else if (k === 'j' || k === 'J') seekBy(-10);
       else if (k === 'ArrowUp') changeVol(0.05);
       else if (k === 'ArrowDown') changeVol(-0.05);
-      else if (k === 'm' || k === 'M') { v.muted = !v.muted; flashIt('vol', v.muted ? 'Muted' : Math.round(v.volume * 100) + '%'); }
+      else if (k === 'm' || k === 'M') { const nm = !(audOn.current ? mutedRef.current : v.muted); setMute(nm); flashIt('vol', nm ? 'Muted' : Math.round((audOn.current ? volRef.current : v.volume) * 100) + '%'); }
+      else if ((k === 'a' || k === 'A') && live.current.cycleAudio) live.current.cycleAudio();
       else if (k === 'f' || k === 'F') toggleFull();
       else if (k === 'i' || k === 'I') pip();
       else if (k === 'n' || k === 'N') live.current.onNext?.();
@@ -179,7 +221,7 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [toggle, seekBy, changeVol, toggleFull, pip, poke, mini]);
+  }, [toggle, seekBy, changeVol, setMute, toggleFull, pip, poke, mini]);
 
   // ---- OS media keys / lock-screen controls ----
   useEffect(() => {
@@ -207,6 +249,89 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
     const t = setTimeout(() => setCount((c) => (c === null ? null : c - 1)), 1000);
     return () => clearTimeout(t);
   }, [count]); // eslint-disable-line
+
+  // ---- audio languages ----
+  // list the tracks inside this file; with 2+ the picker appears, and the last chosen language is re-applied
+  useEffect(() => {
+    if (!src || !src.startsWith('/api/stream/')) return undefined;
+    let alive = true;
+    api.audioTracks(video._id).then((r) => {
+      if (!alive) return;
+      const t = r.tracks || [];
+      setTracks(t);
+      const want = getPrefs().audioLang;
+      if (want && t.length > 1) {
+        const m = t.find((x) => x.lang === want);
+        if (m && m.n !== defaultTrack(t)) selectAudio(m.n, t, false);
+      }
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [video._id, src]); // eslint-disable-line
+
+  // choose a track. The video's own audio is used for its default track; any other track is cut out
+  // by the server once (can take a minute for a long film), then played in sync with the muted video.
+  async function selectAudio(n, list = tracks, remember = true) {
+    const token = ++pick.current;
+    const t = list.find((x) => x.n === n);
+    if (remember) setPrefs({ audioLang: t?.lang || '' });
+    if (n === defaultTrack(list)) { setAud(null); setAudBusy(null); if (remember) flashIt('vol', t ? audLabel(t) : 'Audio'); return; }
+    setAudBusy(n);
+    if (remember) flashIt('vol', 'Preparing audio…');
+    let ready = false;
+    try {
+      for (let i = 0; i < 2400 && pick.current === token; i++) {
+        const s = await api.audioStatus(video._id, n);
+        if (s.state === 'ready') { ready = true; break; }
+        if (s.state === 'error') break;
+        await new Promise((r) => setTimeout(r, 1500));
+      }
+    } catch { /* treated as not ready */ }
+    if (pick.current !== token) return;
+    setAudBusy(null);
+    if (!ready) { flashIt('vol', 'Audio unavailable'); return; }
+    setAud(n);
+    if (t) flashIt('vol', audLabel(t));
+  }
+
+  const cycleAudio = () => {
+    if (tracks.length < 2) return;
+    const cur = aud === null ? defaultTrack(tracks) : aud;
+    const i = tracks.findIndex((x) => x.n === cur);
+    selectAudio(tracks[(i + 1) % tracks.length].n);
+  };
+  live.current.cycleAudio = cycleAudio;
+
+  // keep the extra audio element locked to the video (play, pause, seek, speed, drift)
+  useEffect(() => {
+    const v = vref.current, a = aref.current;
+    if (aud === null || !a) { audOn.current = false; if (v) v.muted = mutedRef.current; return undefined; }
+    audOn.current = true;
+    v.muted = true;
+    a.volume = volRef.current; a.muted = mutedRef.current; a.playbackRate = v.playbackRate;
+    const sync = (force) => { if (force || Math.abs(a.currentTime - v.currentTime) > 0.3) { try { a.currentTime = v.currentTime; } catch { /* not loaded yet */ } } };
+    const start = () => { sync(true); if (!v.paused) a.play().catch(() => { audOn.current = false; v.muted = mutedRef.current; setAud(null); flashIt('vol', 'Browser blocked the audio'); }); };
+    const onPlaying = () => { sync(); if (!v.paused) a.play().catch(() => {}); };
+    const onPause = () => a.pause();
+    const onSeek = () => sync(true);
+    const onRate = () => { a.playbackRate = v.playbackRate; };
+    const onTime = () => sync();
+    a.addEventListener('loadedmetadata', start);
+    v.addEventListener('playing', onPlaying); v.addEventListener('play', onPlaying);
+    v.addEventListener('pause', onPause); v.addEventListener('waiting', onPause);
+    v.addEventListener('seeking', onSeek); v.addEventListener('seeked', onSeek);
+    v.addEventListener('ratechange', onRate); v.addEventListener('timeupdate', onTime);
+    if (a.readyState >= 1) start();
+    return () => {
+      a.removeEventListener('loadedmetadata', start);
+      v.removeEventListener('playing', onPlaying); v.removeEventListener('play', onPlaying);
+      v.removeEventListener('pause', onPause); v.removeEventListener('waiting', onPause);
+      v.removeEventListener('seeking', onSeek); v.removeEventListener('seeked', onSeek);
+      v.removeEventListener('ratechange', onRate); v.removeEventListener('timeupdate', onTime);
+      a.pause();
+      audOn.current = false;
+      v.muted = mutedRef.current;
+    };
+  }, [aud]); // eslint-disable-line
 
   // ---- video element events ----
   const readBuffered = () => {
@@ -305,9 +430,10 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
         onSeeked={() => setWait(false)}
         onError={() => { setErr(true); setWait(false); }}
         onEnded={onEnd}
-        onVolumeChange={() => { const v = vref.current; setVol(v.volume); setMuted(v.muted); setPrefs({ volume: v.volume, muted: v.muted }); }}
+        onVolumeChange={() => { if (audOn.current) return; const v = vref.current; setVol(v.volume); setMuted(v.muted); setPrefs({ volume: v.volume, muted: v.muted }); }}
         onRateChange={() => { const r = vref.current.playbackRate; setRate(r); setPrefs({ rate: r }); }}
       />
+      {aud !== null && <audio ref={aref} src={`/api/audio/${video._id}/${aud}/file`} preload="auto" />}
       <div className="p-surface" onPointerDown={(e) => { tap.current.type = e.pointerType; }} onClick={onSurfaceClick} />
 
       {wait && !err && <div className="p-spinner" aria-label="Loading" />}
@@ -386,19 +512,31 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
           {onNext && <button className="p-btn" onClick={onNext} aria-label="Next"><Icon name="next" /></button>}
 
           <div className="vol">
-            <button className="p-btn" onClick={() => { vref.current.muted = !vref.current.muted; }} aria-label="Mute"><Icon name={volIcon} /></button>
+            <button className="p-btn" onClick={() => setMute(!muted)} aria-label="Mute"><Icon name={volIcon} /></button>
             <input type="range" min="0" max="1" step="0.01" value={muted ? 0 : vol} aria-label="Volume"
-              onChange={(e) => { const v = vref.current; v.volume = +e.target.value; v.muted = +e.target.value === 0; }}
+              onChange={(e) => { const x = +e.target.value; setVolume(x); setMute(x === 0); }}
               onPointerUp={(e) => e.currentTarget.blur()} />
           </div>
 
           <span className="p-time">{fmt(shown)} <i>/</i> {fmt(dur)}</span>
           <span className="grow" />
 
+          {tracks.length > 1 && (
+            <button className="p-btn" onClick={() => setMenu((m) => !m)} aria-label="Audio language" title="Audio language (A)"><Icon name="audio" size={24} />{audBusy !== null && <em className="rate-badge">…</em>}</button>
+          )}
           <div className="menu-wrap">
             <button className="p-btn" onClick={() => setMenu((m) => !m)} aria-label="Settings"><Icon name="settings" size={24} />{rate !== 1 && <em className="rate-badge">{rate}×</em>}</button>
             {menu && (
               <div className="p-menu">
+                {tracks.length > 1 && (
+                  <>
+                    <h4>Audio</h4>
+                    {tracks.map((t) => {
+                      const sel = aud === null ? t.n === defaultTrack(tracks) : aud === t.n;
+                      return <button key={t.n} className={sel ? 'on' : ''} onClick={() => { selectAudio(t.n); setMenu(false); }}>{audLabel(t)}{audBusy === t.n && ' …'}</button>;
+                    })}
+                  </>
+                )}
                 <h4>Playback speed</h4>
                 {SPEEDS.map((s) => (
                   <button key={s} className={s === rate ? 'on' : ''} onClick={() => { applyRate(s); setMenu(false); }}>{s === 1 ? 'Normal' : s + '×'}</button>

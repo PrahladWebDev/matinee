@@ -668,3 +668,16 @@ body{position:relative}
 .logo-img{height:clamp(34px,3.8vw,46px)}
 .share-top .logo-img{height:38px}
 @media (max-width:760px){ .logo-img{height:36px} }
+
+/* ---------- PIN lock screen for private folders ---------- */
+.pin-page{display:grid;place-items:center;min-height:80vh}
+.pin-card{width:min(380px,100%);display:grid;gap:14px;text-align:center;background:var(--bg2);border:1px solid var(--line);border-radius:18px;padding:32px;box-shadow:0 20px 60px color-mix(in srgb,var(--shadow) 45%,transparent)}
+.pin-card h1{font-size:26px}
+.pin-card p{margin:0}
+.pin-ico{display:grid;place-items:center;width:64px;height:64px;margin:0 auto;border-radius:50%;color:var(--accent);background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.pin-input{text-align:center;font:600 22px var(--sans);letter-spacing:.3em;padding:12px}
+.pin-input::placeholder{letter-spacing:.1em;font-size:15px}
+
+/* long audio-language lists scroll inside the player menu */
+.p-menu{max-height:min(330px,52vh);overflow-y:auto;scrollbar-width:thin}
+.p-menu button{white-space:nowrap}

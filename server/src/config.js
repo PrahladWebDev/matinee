@@ -14,6 +14,8 @@ export const config = {
   cookieSecure: e.COOKIE_SECURE === 'true',
   nginxAccel: e.USE_NGINX_ACCEL === 'true',
   cacheTtl: +e.CACHE_TTL || 3600,
+  privatePin: e.PRIVATE_PIN || '',                       // optional; the PIN can also be set from Admin
+  privateUnlockMinutes: +e.PRIVATE_UNLOCK_MINUTES || 60, // how long a correct PIN keeps private folders open
 };
 
 if (process.env.NODE_ENV === 'production' &&

@@ -29,8 +29,14 @@ export function absPath(rel) {
 
 export const thumbPath = (id) => path.join(config.mediaRoot, '.thumbs', `${id}.jpg`);
 export const hdPath = (id) => path.join(config.mediaRoot, '.thumbs', `${id}-hd.jpg`);
-export const removeThumbs = (id) =>
-  Promise.all([fsp.rm(thumbPath(id), { force: true }), fsp.rm(hdPath(id), { force: true })]);
+export async function removeThumbs(id) {
+  await Promise.all([fsp.rm(thumbPath(id), { force: true }), fsp.rm(hdPath(id), { force: true })]);
+  // extracted audio-language tracks (.audio/<id>-<n>.m4a)
+  try {
+    const dir = path.join(config.mediaRoot, '.audio');
+    for (const f of await fsp.readdir(dir)) if (f.startsWith(`${id}-`)) await fsp.rm(path.join(dir, f), { force: true });
+  } catch {}
+}
 
 export async function exists(p) {
   try { await fsp.access(p); return true; } catch { return false; }

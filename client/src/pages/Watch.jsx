@@ -7,12 +7,15 @@ import { useAuth } from '../App';
 import { fmt } from '../progress';
 import { store } from '../playerStore';
 import { toggleList, useMyList } from '../mylist';
+import PinGate from '../components/PinGate';
 
 export default function Watch() {
   const { id } = useParams();
   const nav = useNavigate();
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
+  const [locked, setLocked] = useState(false);
+  const [tick, setTick] = useState(0);
   const [mode, setMode] = useState(() => localStorage.getItem('mt_autoplay') || 'next');
   const [rand, setRand] = useState(null);
   const activeRef = useRef(null);
@@ -26,9 +29,11 @@ export default function Watch() {
 
   // The previous video keeps playing until the next one's data arrives (keeps fullscreen alive)
   useEffect(() => {
-    setErr('');
-    api.watch(id).then((d) => { setData(d); document.title = d.video.title + ' · Matinee'; }).catch((e) => setErr(e.message));
-  }, [id]);
+    setErr(''); setLocked(false);
+    api.watch(id)
+      .then((d) => { setData(d); document.title = d.video.title + ' · Matinee'; })
+      .catch((e) => { if (e.locked) { setLocked(true); setData(null); } else setErr(e.message); });
+  }, [id, tick]);
 
   const vid = data?.video;
 
@@ -87,6 +92,7 @@ export default function Watch() {
     });
   }, [data, mode, rand]); // eslint-disable-line
 
+  if (locked) return <PinGate onUnlocked={() => setTick((t) => t + 1)} />;
   if (err && !data) return <div className="page"><div className="error">{err}</div></div>;
   if (!data) return <div className="page muted">Loading…</div>;
 

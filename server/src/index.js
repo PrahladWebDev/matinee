@@ -12,6 +12,8 @@ import authRoutes from './routes/auth.js';
 import libraryRoutes from './routes/library.js';
 import adminRoutes from './routes/admin.js';
 import shareRoutes, { findShared } from './routes/share.js';
+import privateRoutes from './routes/private.js';
+import audioRoutes from './routes/audio.js';
 import { injectOg } from './utils/og.js';
 import { ah } from './utils/ah.js';
 
@@ -30,6 +32,8 @@ app.use(cookieParser());
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/share', shareRoutes);   // public, token-based
+app.use('/api/private', privateRoutes);   // PIN unlock for private folders
+app.use('/api/audio', audioRoutes);       // audio-language tracks
 app.use('/api', libraryRoutes);
 app.use('/api', (req, res) => res.status(404).json({ error: 'Not found' }));
 
