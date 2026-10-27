@@ -215,7 +215,7 @@ function Uploader({ folders, reload }) {
 }
 
 /* ---------------- private folder PIN ---------------- */
-function PrivatePin() {
+function PrivatePin({ onChange }) {
   const [set, setSet] = useState(null);
   const [cur, setCur] = useState('');
   const [pin, setPin] = useState('');
@@ -227,13 +227,13 @@ function PrivatePin() {
   const save = async (e) => {
     e.preventDefault(); setMsg(''); setOk('');
     if (pin !== pin2) { setMsg('The two PINs do not match'); return; }
-    try { await api.setPin(pin, cur); setSet(true); setCur(''); setPin(''); setPin2(''); setOk('PIN saved. Private folders are locked until it is entered.'); }
+    try { await api.setPin(pin, cur); setSet(true); setCur(''); setPin(''); setPin2(''); setOk('PIN saved. Private folders are locked until it is entered.'); onChange?.(); }
     catch (x) { setMsg(x.message); }
   };
   const remove = async () => {
     setMsg(''); setOk('');
     if (!confirm('Remove the PIN? Private folders will open without asking.')) return;
-    try { const r = await api.removePin(cur); setSet(r.pinSet); setCur(''); setOk(r.pinSet ? 'Saved PIN removed (a PIN from the server .env file is still active).' : 'PIN removed.'); }
+    try { const r = await api.removePin(cur); setSet(r.pinSet); setCur(''); setOk(r.pinSet ? 'Saved PIN removed (a PIN from the server .env file is still active).' : 'PIN removed.'); onChange?.(); }
     catch (x) { setMsg(x.message); }
   };
 
@@ -346,6 +346,44 @@ function MovePicker({ folders, video, onPick, onClose }) {
   );
 }
 
+/* ---------------- PIN prompt for locked private folders ---------------- */
+function PinPrompt({ folder, onUnlocked, onClose }) {
+  const [pin, setPin] = useState('');
+  const [err, setErr] = useState('');
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const key = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', key);
+    return () => document.removeEventListener('keydown', key);
+  }, [onClose]);
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!pin || busy) return;
+    setBusy(true); setErr('');
+    try { await api.unlockPrivate(pin); await onUnlocked(folder); }
+    catch (x) { setErr(x.message); setPin(''); setBusy(false); }
+  };
+  return (
+    <div className="a-modal-bg" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <form className="a-modal a-pinbox" onSubmit={submit} role="dialog" aria-modal="true" aria-label="Enter PIN">
+        <header>
+          <div>
+            <h3>Private folder</h3>
+            <p className="a-faint a-clip">{folder.name}</p>
+          </div>
+          <button type="button" className="a-icon-btn" onClick={onClose} aria-label="Close"><Ic n="close" /></button>
+        </header>
+        <div className="a-pin">
+          <p className="a-faint a-small">Enter your PIN to see what is inside. Until then its videos and counts stay hidden.</p>
+          <input autoFocus type="password" autoComplete="off" maxLength={32} placeholder="PIN" value={pin} onChange={(e) => setPin(e.target.value)} aria-label="PIN" />
+          {err && <div className="error">{err}</div>}
+          <button className="btn accent" disabled={busy || !pin}>{busy ? 'Checking…' : 'Unlock'}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 /* ---------------- library tree ---------------- */
 const VideoRow = memo(function VideoRow({ v, onVideo, where }) {
   const meta = [v.duration ? fmt(v.duration) : '', v.size ? sizeOf(v.size) : ''].filter(Boolean).join(' · ');
@@ -385,20 +423,23 @@ const VideoList = memo(function VideoList({ list, onVideo }) {
   );
 });
 
-function FolderNode({ f, inherited, idx, open, toggle, onFolder, onVideo }) {
-  const isOpen = open.has(f._id);
+function FolderNode({ f, inherited, idx, open, locked, onToggle, onFolder, onVideo }) {
   const priv = f.isPrivate || inherited;
+  const hide = locked && priv; // private + PIN not entered: nothing inside may show
+  const isOpen = open.has(f._id) && !hide;
   const n = idx.tot[f._id] || 0;
   return (
     <li className="a-folder">
       <div className={`a-frow ${isOpen ? 'on' : ''}`}>
-        <button type="button" className={`a-caret ${isOpen ? 'on' : ''}`} onClick={() => toggle(f._id)} aria-label={isOpen ? 'Collapse' : 'Expand'} aria-expanded={isOpen}>
+        <button type="button" className={`a-caret ${isOpen ? 'on' : ''}`} onClick={() => onToggle(f, priv)} aria-label={hide ? 'Locked, enter PIN' : isOpen ? 'Collapse' : 'Expand'} aria-expanded={isOpen}>
           <Ic n="chev" />
         </button>
-        <button type="button" className="a-fname" onClick={() => toggle(f._id)} title={f.name}>
+        <button type="button" className="a-fname" onClick={() => onToggle(f, priv)} title={hide ? 'Locked — enter PIN to open' : f.name}>
           <Ic n="folder" s={20} /><span>{f.name}</span>
         </button>
-        <span className="a-count" title={`${n} ${n === 1 ? 'video' : 'videos'}`}>{n}</span>
+        {hide
+          ? <span className="a-count lock" title="Locked — enter PIN to see inside"><Ic n="lock" s={12} /></span>
+          : <span className="a-count" title={`${n} ${n === 1 ? 'video' : 'videos'}`}>{n}</span>}
         <PrivBadge priv={f.isPrivate} inherited={!f.isPrivate && inherited} />
         <Kebab label={`Actions for ${f.name}`}>
           <Link className="a-mi" role="menuitem" to={`/folder/${f._id}`}><Ic n="folder" />Open folder</Link>
@@ -410,7 +451,7 @@ function FolderNode({ f, inherited, idx, open, toggle, onFolder, onVideo }) {
       {isOpen && (
         <ul className="a-children">
           {(idx.kids[f._id] || []).map((c) => (
-            <FolderNode key={c._id} f={c} inherited={priv} idx={idx} open={open} toggle={toggle} onFolder={onFolder} onVideo={onVideo} />
+            <FolderNode key={c._id} f={c} inherited={priv} idx={idx} open={open} locked={locked} onToggle={onToggle} onFolder={onFolder} onVideo={onVideo} />
           ))}
           <VideoList list={idx.vids[f._id] || EMPTY} onVideo={onVideo} />
           {!(idx.kids[f._id]?.length) && !(idx.vids[f._id]?.length) && <li className="a-empty-row">Empty folder</li>}
@@ -421,11 +462,12 @@ function FolderNode({ f, inherited, idx, open, toggle, onFolder, onVideo }) {
 }
 const EMPTY = [];
 
-function Library({ folders, videos, setVideos, reload }) {
+function Library({ folders, videos, setVideos, reload, locked, canLock, privIds, refreshGate }) {
   const [open, setOpen] = useState(() => new Set());
   const [share, setShare] = useState(null);
   const [moving, setMoving] = useState(null);
   const [adding, setAdding] = useState(false);
+  const [ask, setAsk] = useState(null); // private folder waiting for its PIN
   const [q, setQ] = useState('');
   const query = useDeferredValue(q).trim().toLowerCase();
 
@@ -454,13 +496,31 @@ function Library({ folders, videos, setVideos, reload }) {
     if (!query) return null;
     const out = []; let total = 0;
     for (const v of videos || []) {
+      if (locked && privIds.has(v.folder)) continue; // locked private videos never show up in search
       if ((v.title || '').toLowerCase().includes(query)) { total++; if (out.length < 150) out.push(v); }
     }
     return { out, total };
-  }, [query, videos]);
+  }, [query, videos, locked, privIds]);
 
   const toggle = useCallback((id) => setOpen((o) => { const n = new Set(o); if (n.has(id)) n.delete(id); else n.add(id); return n; }), []);
-  const expandAll = () => setOpen(new Set([...folders.map((f) => f._id), 'root']));
+  const expandAll = () => setOpen(new Set([...folders.filter((f) => !(locked && privIds.has(f._id))).map((f) => f._id), 'root']));
+
+  // Opening a private folder re-checks the PIN state first; a locked one asks for the PIN instead of expanding.
+  const onToggle = useCallback(async (f, priv) => {
+    if (priv) {
+      let needPin = true;
+      try { const s = await api.privateStatus(); needPin = !!s.pinSet && !s.unlocked; refreshGate(); } catch { /* treat as locked */ }
+      if (needPin) { setOpen((o) => { if (!o.has(f._id)) return o; const n = new Set(o); n.delete(f._id); return n; }); setAsk(f); return; }
+    }
+    toggle(f._id);
+  }, [toggle, refreshGate]);
+
+  const unlocked = async (f) => {
+    await refreshGate();
+    setAsk(null);
+    setOpen((o) => new Set(o).add(f._id));
+  };
+  const lockNow = async () => { try { await api.lockPrivate(); } catch { /* ignore */ } refreshGate(); };
   const collapseAll = () => setOpen(new Set());
 
   const onVideo = useCallback(async (kind, v) => {
@@ -527,13 +587,13 @@ function Library({ folders, videos, setVideos, reload }) {
           <Ic n="search" s={18} />
           <input type="search" placeholder="Search videos by name…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search videos" />
         </div>
-        {!query && (
-          <div className="a-actions">
-            <button className="btn sm" onClick={expandAll}>Expand all</button>
-            <button className="btn sm" onClick={collapseAll}>Collapse all</button>
-          </div>
-        )}
+        <div className="a-actions">
+          {!query && <button className="btn sm" onClick={expandAll}>Expand all</button>}
+          {!query && <button className="btn sm" onClick={collapseAll}>Collapse all</button>}
+          {canLock && !locked && <button className="btn sm" onClick={lockNow}><Ic n="lock" s={14} /> Lock private</button>}
+        </div>
       </div>
+      {locked && privIds.size > 0 && <p className="a-note a-lockinfo"><Ic n="lock" s={14} /> Private folders are locked. Tap one and enter your PIN to see what is inside.</p>}
 
       {!videos && <p className="a-faint a-pad">Loading…</p>}
 
@@ -550,7 +610,7 @@ function Library({ folders, videos, setVideos, reload }) {
       {videos && !hits && (
         <ul className="a-tree">
           {rootFolders.map((f) => (
-            <FolderNode key={f._id} f={f} inherited={false} idx={idx} open={open} toggle={toggle} onFolder={onFolder} onVideo={onVideo} />
+            <FolderNode key={f._id} f={f} inherited={false} idx={idx} open={open} locked={locked} onToggle={onToggle} onFolder={onFolder} onVideo={onVideo} />
           ))}
           {rootVideos.length > 0 && (
             <li className="a-folder">
@@ -568,6 +628,7 @@ function Library({ folders, videos, setVideos, reload }) {
       )}
 
       {share && <ShareDialog video={share} onClose={() => setShare(null)} />}
+      {ask && <PinPrompt folder={ask} onUnlocked={unlocked} onClose={() => setAsk(null)} />}
       {moving && <MovePicker folders={folders} video={moving} onPick={moveTo} onClose={() => setMoving(null)} />}
     </Card>
   );
@@ -648,22 +709,47 @@ export default function Admin() {
     try { const t = sessionStorage.getItem(TAB_KEY); return TABS.some((x) => x[0] === t) ? t : 'library'; } catch { return 'library'; }
   });
 
+  // null until the server answers: until then private folders are treated as locked
+  const [gate, setGate] = useState(null);
+  const refreshGate = useCallback(() => api.privateStatus().then((s) => setGate({ pinSet: !!s.pinSet, unlocked: !!s.unlocked })).catch(() => {}), []);
+  const locked = !gate || (gate.pinSet && !gate.unlocked);
   const loadFolders = useCallback(() => api.folders().then(setFolders).catch(() => {}), []);
   const loadVideos = useCallback(() => api.library().then((d) => setVideos(d.videos)).catch(() => setVideos((v) => v || [])), []);
   const reload = useCallback(() => Promise.all([loadFolders(), loadVideos()]), [loadFolders, loadVideos]);
-  useEffect(() => { reload(); document.title = 'Admin · Matinee'; }, [reload]);
+  useEffect(() => { reload(); refreshGate(); document.title = 'Admin · Matinee'; }, [reload, refreshGate]);
+  // the unlock expires on the server, so re-check regularly and when the tab regains focus
+  useEffect(() => {
+    const t = setInterval(refreshGate, 20000);
+    const onVis = () => { if (!document.hidden) refreshGate(); };
+    document.addEventListener('visibilitychange', onVis);
+    return () => { clearInterval(t); document.removeEventListener('visibilitychange', onVis); };
+  }, [refreshGate]);
+
+  // ids of every private folder, including ones that are private only because a parent is
+  const privIds = useMemo(() => {
+    const byId = new Map(folders.map((f) => [f._id, f]));
+    const out = new Set();
+    for (const f of folders) {
+      let cur = f; let hops = 0;
+      while (cur && hops++ < 64) {
+        if (cur.isPrivate) { out.add(f._id); break; }
+        cur = cur.parent ? byId.get(cur.parent) : null;
+      }
+    }
+    return out;
+  }, [folders]);
 
   const go = (t) => { setTab(t); try { sessionStorage.setItem(TAB_KEY, t); } catch { /* ignore */ } };
 
   const stats = useMemo(() => {
-    const list = videos || [];
+    const list = (videos || []).filter((v) => !(locked && privIds.has(v.folder)));
     return {
       videos: videos ? list.length : '–',
       folders: folders.length,
       priv: folders.filter((f) => f.isPrivate).length,
       size: videos ? sizeOf(list.reduce((n, v) => n + (v.size || 0), 0)) : '–',
     };
-  }, [videos, folders]);
+  }, [videos, folders, locked, privIds]);
 
   return (
     <div className="page admin adm">
@@ -692,11 +778,11 @@ export default function Admin() {
         ))}
       </nav>
 
-      {tab === 'library' && <Library folders={folders} videos={videos} setVideos={setVideos} reload={reload} />}
+      {tab === 'library' && <Library folders={folders} videos={videos} setVideos={setVideos} reload={reload} locked={locked} canLock={!!gate?.pinSet} privIds={privIds} refreshGate={refreshGate} />}
       {/* stays mounted so an upload in progress is not lost when switching tabs */}
       <div hidden={tab !== 'upload'}><Uploader folders={folders} reload={reload} /></div>
       {tab === 'sharing' && <SharedLinks />}
-      {tab === 'privacy' && <PrivatePin />}
+      {tab === 'privacy' && <PrivatePin onChange={refreshGate} />}
       {tab === 'scan' && <Scan reload={reload} />}
     </div>
   );
@@ -760,6 +846,12 @@ const CSS = `
 .a-fname svg{flex:none;color:var(--accent)}
 .a-fname span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .a-count{flex:none;min-width:28px;padding:2px 9px;border-radius:99px;background:var(--surface2);color:var(--muted);font:700 12px var(--sans);text-align:center;font-variant-numeric:tabular-nums}
+.a-count.lock{display:inline-grid;place-items:center;color:var(--danger-ink);background:var(--danger-bg)}
+.a-lockinfo{display:flex;align-items:center;gap:8px}
+.a-pinbox{width:min(420px,100%)}
+.a-pin{display:grid;gap:12px;padding:0 22px 22px}
+.a-pin p{margin:0}
+.a-pin input{width:100%}
 .a-vic{flex:none;width:34px;height:34px;display:grid;place-items:center;border-radius:10px;background:var(--surface2);color:var(--muted)}
 .a-main{flex:1;min-width:0;display:grid;gap:1px}
 .a-title{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:600;font-size:14.5px}
