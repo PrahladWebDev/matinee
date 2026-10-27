@@ -33,6 +33,14 @@ You'll see two panels: **left = your PC, right = the server.**
 
 ---
 
+
+cd /var/www/projects/matinee && nice -n 19 ionice -c3 bash deploy/optimize.sh "/var/media/matinee/"
+
+tmux kill-session -t opt
+
+tmux new -s opt  
+
+
 ## Every time you add videos
 
 ### Step 1 — Choose the folder on your PC (left panel)
