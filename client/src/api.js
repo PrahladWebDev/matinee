@@ -45,7 +45,7 @@ export const api = {
   folders: () => call('GET', '/admin/folders'),
   library: () => call('GET', '/admin/library'),
   createFolder: (name, parent, isPrivate = false) => call('POST', '/admin/folders', { name, parent, isPrivate }),
-  setFolderPrivate: (id, isPrivate) => call('PATCH', '/admin/folders/' + id, { isPrivate }),
+  setFolderPrivate: (id, isPrivate, pin) => call('PATCH', '/admin/folders/' + id, { isPrivate, ...(pin ? { pin } : {}) }),
   ensurePath: (path, parent) => call('POST', '/admin/folders/ensure', { path, parent }),
   renameFolder: (id, name) => call('PATCH', '/admin/folders/' + id, { name }),
   deleteFolder: (id) => call('DELETE', '/admin/folders/' + id),

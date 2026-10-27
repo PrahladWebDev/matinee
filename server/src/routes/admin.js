@@ -70,7 +70,17 @@ r.patch('/folders/:id', ah(async (req, res) => {
   const f = await Folder.findById(req.params.id);
   if (!f) return bad(res, 404, 'Folder not found');
   if (req.body?.name?.trim()) f.name = req.body.name.trim();
-  if (typeof req.body?.isPrivate === 'boolean') f.isPrivate = req.body.isPrivate;
+  if (typeof req.body?.isPrivate === 'boolean') {
+    const nextPrivate = req.body.isPrivate;
+
+    // Making a private folder public requires the current private-folder PIN.
+    // Making a public folder private does not require the PIN.
+    if (f.isPrivate && !nextPrivate && await pinIsSet()) {
+      if (!(await verifyPin(req.body?.pin))) return bad(res, 403, 'Current PIN is wrong');
+    }
+
+    f.isPrivate = nextPrivate;
+  }
   await f.save();
   invalidate();
   res.json(f);

@@ -180,7 +180,24 @@ function Folders({ folders, reload }) {
     try { await api.createFolder(name, parent === 'root' ? null : parent, vis === 'private'); setName(''); setMsg(''); reload(); }
     catch (e) { setMsg(e.message); }
   };
-  const togglePrivate = async (f) => { await api.setFolderPrivate(f._id, !f.isPrivate); reload(); };
+  const togglePrivate = async (f) => {
+    const makePublic = f.isPrivate;
+    let pin;
+
+    if (makePublic) {
+      pin = prompt('Enter the current private-folder PIN to make this folder public:');
+      if (pin === null) return;
+      if (!pin) return setMsg('PIN is required to make a private folder public.');
+    }
+
+    try {
+      await api.setFolderPrivate(f._id, !f.isPrivate, pin);
+      setMsg('');
+      reload();
+    } catch (e) {
+      setMsg(e.message);
+    }
+  };
   const rename = async (f) => {
     const n = prompt('New name', f.name);
     if (n && n.trim()) { await api.renameFolder(f._id, n); reload(); }
@@ -248,7 +265,23 @@ function Library({ folders, reload }) {
   const delV = async (v) => { if (!confirm(`Delete “${v.title}”? The file is removed from the server.`)) return; await api.deleteVideo(v._id); both(); };
   const renameF = async (f) => { const n = prompt('New name', f.name); if (n && n.trim()) { await api.renameFolder(f._id, n); reload(); } };
   const delF = async (f) => { if (!confirm(`Delete “${f.name}” and every video inside it? The files are removed from the server too.`)) return; await api.deleteFolder(f._id); both(); };
-  const privF = async (f) => { await api.setFolderPrivate(f._id, !f.isPrivate); reload(); };
+  const privF = async (f) => {
+    const makePublic = f.isPrivate;
+    let pin;
+
+    if (makePublic) {
+      pin = prompt('Enter the current private-folder PIN to make this folder public:');
+      if (pin === null) return;
+      if (!pin) return alert('PIN is required to make a private folder public.');
+    }
+
+    try {
+      await api.setFolderPrivate(f._id, !f.isPrivate, pin);
+      reload();
+    } catch (e) {
+      alert(e.message);
+    }
+  };
 
   const videoRow = (v) => (
     <li key={v._id} className="lib-video">
