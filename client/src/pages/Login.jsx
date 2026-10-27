@@ -24,7 +24,7 @@ export default function Login() {
     <div className="login">
       <div className="theme-fab"><ThemeSwitcher /></div>
       <form onSubmit={submit} className="login-card">
-        <img className="login-logo" src="/logo.png" alt="Matinee" />
+        <img className="login-logo" src="/logo-v2.png" alt="Matinee" />
         <p className="muted">Your own screening room. Sign in to start watching.</p>
         <label>Username<input value={u} onChange={(e) => setU(e.target.value)} autoComplete="username" autoFocus /></label>
         <label>Password<input type="password" value={p} onChange={(e) => setP(e.target.value)} autoComplete="current-password" /></label>

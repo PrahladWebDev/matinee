@@ -21,7 +21,7 @@ export default function Share() {
   return (
     <div className="share-page">
       <header className="share-top">
-        <span className="logo"><img className="logo-img" src="/logo-nav.png" alt="Matinee" /></span>
+        <span className="logo"><img className="logo-img" src="/logo-nav-v2.png" alt="Matinee" /></span>
         <ThemeSwitcher />
         <span className="share-tag"><Icon name="link" size={15} /> Shared with you</span>
       </header>

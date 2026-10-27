@@ -663,3 +663,8 @@ body{position:relative}
 .theme-fab .ico{background:color-mix(in srgb,var(--bg2) 85%,transparent);border:1px solid var(--line);backdrop-filter:blur(10px);color:var(--text)}
 .share-top .theme-wrap{margin-left:auto;margin-right:10px}
 .share-top .theme-wrap .ico{border:1px solid var(--line)}
+
+/* new wordmark is wider and has a tagline: give it a little more height */
+.logo-img{height:clamp(34px,3.8vw,46px)}
+.share-top .logo-img{height:38px}
+@media (max-width:760px){ .logo-img{height:36px} }

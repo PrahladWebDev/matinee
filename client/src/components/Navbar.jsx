@@ -65,7 +65,7 @@ export default function Navbar() {
   return (
     <>
       <header className={`nav${solid ? ' solid' : ''}`}>
-        <Link to="/" className="logo" aria-label="Matinee"><img className="logo-img" src="/logo-nav.png" alt="Matinee" /></Link>
+        <Link to="/" className="logo" aria-label="Matinee"><img className="logo-img" src="/logo-nav-v2.png" alt="Matinee" /></Link>
         <span className="grow" />
 
         <div className={`search${expanded ? ' open' : ''}`}>
