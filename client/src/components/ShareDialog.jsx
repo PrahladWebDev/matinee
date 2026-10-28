@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { api } from '../api';
 import Icon from './Icon';
 import { cleanTitle } from '../format';
@@ -56,7 +57,8 @@ export default function ShareDialog({ video, onClose }) {
   const wa = `https://wa.me/?text=${encodeURIComponent(`${cleanTitle(video.title)}\n${url}`)}`;
   const expired = st?.expiresAt && new Date(st.expiresAt) < new Date();
 
-  return (
+  // rendered on <body> so no page container can trap it underneath the floating player
+  return createPortal(
     <div className="modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal" role="dialog" aria-modal="true" aria-label="Share video" onKeyDown={(e) => e.stopPropagation()}>
         <div className="modal-head">
@@ -113,6 +115,7 @@ export default function ShareDialog({ video, onClose }) {
 
         {err && <div className="error">{err}</div>}
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
