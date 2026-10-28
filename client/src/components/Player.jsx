@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import Icon from './Icon';
 import { api } from '../api';
 import { clearProgress, fmt, getProgress, saveProgress } from '../progress';
+import { activeCue, decodeSubs, parseSubs, subLabel } from '../subs';
+import '../subs.css';
 
 const FITS = ['fit', 'fill', 'stretch'];
 const FIT_LABEL = { fit: 'Fit', fill: 'Fill', stretch: 'Stretch' };
@@ -9,6 +11,15 @@ const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2];
 const getPrefs = () => { try { return JSON.parse(localStorage.getItem('mt_prefs')) || {}; } catch { return {}; } };
 const setPrefs = (p) => { try { localStorage.setItem('mt_prefs', JSON.stringify({ ...getPrefs(), ...p })); } catch {} };
 const clamp = (n, a, b) => Math.min(b, Math.max(a, n));
+
+// subtitles: where the tracks of this video live (own library, or a shared link)
+const SUB_SIZES = [0.7, 0.85, 1, 1.25, 1.5, 1.8, 2.2];
+function subBaseOf(src, id) {
+  if (!src) return null;
+  if (src.startsWith('/api/stream/')) return `/api/subs/${id}`;
+  const m = /^\/api\/share\/([^/]+)\/stream/.exec(src);
+  return m ? `/api/share/${m[1]}/subs` : null;
+}
 
 // audio-language picker helpers
 const defaultTrack = (t) => (t.find((x) => x.default) || t[0])?.n ?? 0;
@@ -58,7 +69,16 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
   const [tracks, setTracks] = useState([]);      // audio tracks found inside the video file
   const [aud, setAud] = useState(null);          // null = the video's own audio, else index of the extra track in use
   const [audBusy, setAudBusy] = useState(null);  // track being prepared on the server
+  const [subs, setSubs] = useState([]);          // subtitle tracks: inside the file, next to it, or picked from the device
+  const [sub, setSub] = useState(null);          // key of the track on screen (null = off)
+  const [subBusy, setSubBusy] = useState(null);  // key of the track being fetched / cut out by the server
+  const [cues, setCues] = useState([]);
+  const [subText, setSubText] = useState('');    // what is on screen right now
+  const [subSize, setSubSize] = useState(getPrefs().subSize ?? 1);
+  const [subDelay, setSubDelay] = useState(0);   // seconds; positive = show later
 
+  const subPick = useRef(0);
+  const fileIn = useRef(null);
   const audOn = useRef(false);
   const volRef = useRef(1);
   const mutedRef = useRef(false);
@@ -90,6 +110,7 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
     v.playbackRate = p.rate ?? 1;
     setCur(0); setDur(0); setBufs([]); setWait(true); setErr(false); setEnded(false); setCount(null);
     pick.current++; setTracks([]); setAud(null); setAudBusy(null);
+    subPick.current++; setSubs([]); setSub(null); setSubBusy(null); setCues([]); setSubText(''); setSubDelay(0);
     prefetched.current = false;
     return () => {
       // remember where we stopped
@@ -208,6 +229,7 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
       else if (k === 'ArrowDown') changeVol(-0.05);
       else if (k === 'm' || k === 'M') { const nm = !(audOn.current ? mutedRef.current : v.muted); setMute(nm); flashIt('vol', nm ? 'Muted' : Math.round((audOn.current ? volRef.current : v.volume) * 100) + '%'); }
       else if ((k === 'a' || k === 'A') && live.current.cycleAudio) live.current.cycleAudio();
+      else if ((k === 'c' || k === 'C') && live.current.toggleSubs) live.current.toggleSubs();
       else if (k === 'f' || k === 'F') toggleFull();
       else if (k === 'i' || k === 'I') pip();
       else if (k === 'n' || k === 'N') live.current.onNext?.();
@@ -300,6 +322,106 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
     selectAudio(tracks[(i + 1) % tracks.length].n);
   };
   live.current.cycleAudio = cycleAudio;
+
+  // ---- subtitles ----
+  // list what exists for this video; the language picked last time is switched on again
+  useEffect(() => {
+    const base = subBaseOf(src, video._id);
+    if (!base) return undefined;
+    let alive = true;
+    fetch(`${base}/list`, { credentials: 'same-origin' })
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((r) => {
+        if (!alive) return;
+        const list = r.subs || [];
+        setSubs((prev) => [...list, ...prev.filter((x) => x.kind === 'local')]);
+        const want = getPrefs().subLang;
+        const m = want && want !== 'off' ? list.find((x) => x.lang === want && !x.forced) || list.find((x) => x.lang === want) : null;
+        if (m) selectSub(m.key, list, false);
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, [video._id, src]); // eslint-disable-line
+
+  // choose a track (null = off). Tracks inside the file are cut out by the server once, which can take
+  // a little while for a long film; files next to the video come back at once.
+  async function selectSub(key, list = subs, remember = true) {
+    const token = ++subPick.current;
+    if (key === null) {
+      setSub(null); setSubBusy(null); setCues([]);
+      if (remember) { setPrefs({ subLang: 'off' }); flashIt('vol', 'Subtitles off'); }
+      return;
+    }
+    const n = list.findIndex((x) => x.key === key);
+    const s = list[n];
+    if (!s) return;
+    if (s.kind !== 'local' && remember) setPrefs({ subLang: s.lang || '' });
+    if (s.kind === 'local') { setCues(s.cues); setSub(key); setSubBusy(null); if (remember) flashIt('vol', subLabel(s, n)); return; }
+    const base = subBaseOf(src, video._id);
+    if (!base) return;
+    setSubBusy(key);
+    if (remember) flashIt('vol', 'Loading subtitles…');
+    let got = null;
+    try {
+      for (let i = 0; i < 1200 && subPick.current === token; i++) {
+        const r = await fetch(`${base}/${key}`, { credentials: 'same-origin' });
+        if (!r.ok) break;
+        const j = await r.json();
+        if (j.state === 'ready') { got = j; break; }
+        if (j.state === 'error') break;
+        await new Promise((res) => setTimeout(res, 1500));
+      }
+    } catch { /* treated as not available */ }
+    if (subPick.current !== token) return;
+    setSubBusy(null);
+    const parsed = got ? parseSubs(got.text, got.format) : [];
+    if (!parsed.length) { if (remember) flashIt('vol', 'Subtitles unavailable'); return; }
+    setCues(parsed); setSub(key);
+    if (remember) flashIt('vol', subLabel(s, n));
+  }
+
+  // a subtitle file from the user's own device (srt / vtt / ass); lives only until the video changes
+  const onLocalFile = async (e) => {
+    const f = e.target.files?.[0];
+    e.target.value = '';
+    if (!f || f.size > 5 * 1024 * 1024) { if (f) flashIt('vol', 'File too large'); return; }
+    try {
+      const parsed = parseSubs(decodeSubs(await f.arrayBuffer()), f.name.split('.').pop());
+      if (!parsed.length) { flashIt('vol', 'Not a subtitle file'); return; }
+      const entry = { key: 'local-' + Date.now(), kind: 'local', lang: '', title: f.name.replace(/\.[^.]+$/, ''), cues: parsed };
+      setSubs((p) => [...p, entry]);
+      selectSub(entry.key, [...subs, entry]);
+    } catch { flashIt('vol', 'Could not read that file'); }
+    setMenu(false);
+  };
+
+  const toggleSubs = () => {
+    if (sub !== null) { selectSub(null); return; }
+    if (!subs.length) { flashIt('vol', 'No subtitles'); return; }
+    const want = getPrefs().subLang;
+    const m = (want && want !== 'off' && subs.find((x) => x.lang === want)) || subs.find((x) => x.default) || subs[0];
+    selectSub(m.key);
+  };
+  live.current.toggleSubs = toggleSubs;
+
+  const bumpSize = (d) => {
+    const i = SUB_SIZES.findIndex((x) => x >= subSize - 0.001);
+    const n = SUB_SIZES[clamp((i < 0 ? 2 : i) + d, 0, SUB_SIZES.length - 1)];
+    setSubSize(n); setPrefs({ subSize: n });
+  };
+
+  // draw the subtitle that belongs to the current moment (frame-accurate while playing)
+  useEffect(() => {
+    const v = vref.current;
+    if (!v || !cues.length) { setSubText(''); return undefined; }
+    let raf = 0;
+    const once = () => setSubText(activeCue(cues, v.currentTime - subDelay));
+    const loop = () => { once(); cancelAnimationFrame(raf); if (!v.paused) raf = requestAnimationFrame(loop); };
+    const evs = ['play', 'playing', 'seeked', 'pause', 'timeupdate', 'ratechange'];
+    evs.forEach((e) => v.addEventListener(e, loop));
+    loop();
+    return () => { evs.forEach((e) => v.removeEventListener(e, loop)); cancelAnimationFrame(raf); };
+  }, [cues, subDelay]);
 
   // keep the extra audio element locked to the video (play, pause, seek, speed, drift)
   useEffect(() => {
@@ -433,7 +555,9 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
         onVolumeChange={() => { if (audOn.current) return; const v = vref.current; setVol(v.volume); setMuted(v.muted); setPrefs({ volume: v.volume, muted: v.muted }); }}
         onRateChange={() => { const r = vref.current.playbackRate; setRate(r); setPrefs({ rate: r }); }}
       />
+      {subText && <div className="p-subs" style={{ '--sub-scale': subSize }}><span>{subText}</span></div>}
       {aud !== null && <audio ref={aref} src={`/api/audio/${video._id}/${aud}/file`} preload="auto" />}
+      <input ref={fileIn} type="file" accept=".srt,.vtt,.ass,.ssa,text/vtt,application/x-subrip" hidden onChange={onLocalFile} />
       <div className="p-surface" onPointerDown={(e) => { tap.current.type = e.pointerType; }} onClick={onSurfaceClick} />
 
       {wait && !err && <div className="p-spinner" aria-label="Loading" />}
@@ -521,6 +645,9 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
           <span className="p-time">{fmt(shown)} <i>/</i> {fmt(dur)}</span>
           <span className="grow" />
 
+          {!mini && (
+            <button className="p-btn" onClick={() => setMenu((m) => !m)} aria-label="Subtitles" title="Subtitles (C)"><Icon name="cc" size={26} />{sub !== null && <em className="rate-badge">ON</em>}{subBusy !== null && sub === null && <em className="rate-badge">…</em>}</button>
+          )}
           {tracks.length > 1 && (
             <button className="p-btn" onClick={() => setMenu((m) => !m)} aria-label="Audio language" title="Audio language (A)"><Icon name="audio" size={24} />{audBusy !== null && <em className="rate-badge">…</em>}</button>
           )}
@@ -537,6 +664,19 @@ export default function Player({ video, src, onBack, onNext, onPrev, upNext, onP
                     })}
                   </>
                 )}
+                <h4>Subtitles</h4>
+                <button className={sub === null ? 'on' : ''} onClick={() => { selectSub(null); setMenu(false); }}>Off</button>
+                {subs.map((t, n) => (
+                  <button key={t.key} className={sub === t.key ? 'on' : ''} onClick={() => { selectSub(t.key); setMenu(false); }}>{subLabel(t, n)}{subBusy === t.key && ' …'}</button>
+                ))}
+                <button onClick={() => fileIn.current?.click()}>Add from device…</button>
+                {sub !== null && (
+                  <>
+                    <div className="p-adj"><span>Size</span><button onClick={() => bumpSize(-1)} aria-label="Smaller">A−</button><b>{Math.round(subSize * 100)}%</b><button onClick={() => bumpSize(1)} aria-label="Larger">A+</button></div>
+                    <div className="p-adj"><span>Delay</span><button onClick={() => setSubDelay((d) => clamp(Math.round((d - 0.25) * 100) / 100, -30, 30))} aria-label="Earlier">−</button><b>{subDelay > 0 ? '+' : ''}{subDelay.toFixed(2)}s</b><button onClick={() => setSubDelay((d) => clamp(Math.round((d + 0.25) * 100) / 100, -30, 30))} aria-label="Later">+</button></div>
+                  </>
+                )}
+                <div className="p-sep" />
                 <h4>Playback speed</h4>
                 {SPEEDS.map((s) => (
                   <button key={s} className={s === rate ? 'on' : ''} onClick={() => { applyRate(s); setMenu(false); }}>{s === 1 ? 'Normal' : s + '×'}</button>

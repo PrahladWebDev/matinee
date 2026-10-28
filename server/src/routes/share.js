@@ -3,6 +3,7 @@ import { Video } from '../models/Video.js';
 import { ah } from '../utils/ah.js';
 import { getPoster, thumbPath } from '../utils/media.js';
 import { sendVideo } from '../utils/stream.js';
+import { getSub, listSubs } from '../utils/subs.js';
 
 // PUBLIC routes (no login). A valid, unexpired token unlocks exactly one video.
 const r = Router();
@@ -31,6 +32,21 @@ r.get('/:token/stream', ah(async (req, res) => {
   const v = await findShared(req.params.token, 'relPath mimeType');
   if (!v) return res.sendStatus(404);
   await sendVideo(req, res, v);
+}));
+
+// subtitles for the shared video (embedded + .srt/.vtt files next to it)
+r.get('/:token/subs', ah(async (req, res) => {
+  const v = await findShared(req.params.token, 'relPath');
+  if (!v) return gone(res);
+  res.set('Cache-Control', 'no-store').json({ subs: await listSubs(String(v._id), v.relPath) });
+}));
+
+r.get('/:token/subs/:key', ah(async (req, res) => {
+  const v = await findShared(req.params.token, 'relPath');
+  if (!v) return gone(res);
+  const s = await getSub(String(v._id), v.relPath, req.params.key);
+  if (!s) return res.status(404).json({ error: 'No such subtitle track' });
+  res.set('Cache-Control', 'no-store').json(s);
 }));
 
 r.get('/:token/poster', ah(async (req, res) => {

@@ -31,11 +31,13 @@ export const thumbPath = (id) => path.join(config.mediaRoot, '.thumbs', `${id}.j
 export const hdPath = (id) => path.join(config.mediaRoot, '.thumbs', `${id}-hd.jpg`);
 export async function removeThumbs(id) {
   await Promise.all([fsp.rm(thumbPath(id), { force: true }), fsp.rm(hdPath(id), { force: true })]);
-  // extracted audio-language tracks (.audio/<id>-<n>.m4a)
-  try {
-    const dir = path.join(config.mediaRoot, '.audio');
-    for (const f of await fsp.readdir(dir)) if (f.startsWith(`${id}-`)) await fsp.rm(path.join(dir, f), { force: true });
-  } catch {}
+  // extracted audio-language tracks (.audio/<id>-<n>.m4a) and subtitle tracks (.subs/<id>-<n>.vtt)
+  for (const d of ['.audio', '.subs']) {
+    try {
+      const dir = path.join(config.mediaRoot, d);
+      for (const f of await fsp.readdir(dir)) if (f.startsWith(`${id}-`)) await fsp.rm(path.join(dir, f), { force: true });
+    } catch {}
+  }
 }
 
 export async function exists(p) {

@@ -8,7 +8,7 @@ import { absPath, exists } from './media.js';
 const run = promisify(execFile);
 
 // ISO 639-2 (3 letter, what video files use) -> 639-1 (what the browser can turn into "Hindi")
-const L2 = {
+export const L2 = {
   eng: 'en', hin: 'hi', tam: 'ta', tel: 'te', mal: 'ml', kan: 'kn', ben: 'bn', mar: 'mr', guj: 'gu', pan: 'pa', urd: 'ur', nep: 'ne',
   jpn: 'ja', kor: 'ko', chi: 'zh', zho: 'zh', cmn: 'zh', yue: 'zh', spa: 'es', fre: 'fr', fra: 'fr', ger: 'de', deu: 'de', ita: 'it',
   por: 'pt', rus: 'ru', ara: 'ar', tha: 'th', ind: 'id', msa: 'ms', may: 'ms', tur: 'tr', dut: 'nl', nld: 'nl', pol: 'pl', swe: 'sv',

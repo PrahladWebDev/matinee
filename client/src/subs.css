@@ -1,0 +1,17 @@
+/* subtitles drawn by the player (see subs.js) */
+.p-subs{position:absolute;z-index:2;left:6%;right:6%;bottom:5%;text-align:center;pointer-events:none;
+  transition:bottom .3s var(--ease,ease);font-family:var(--sans)}
+.player.ui .p-subs{bottom:94px}
+.player.full.ui .p-subs{bottom:104px}
+.p-subs span{display:inline;white-space:pre-line;color:#fff;font-weight:600;line-height:1.5;
+  font-size:calc(clamp(14px,2.7cqw,44px) * var(--sub-scale,1));
+  background:#000000b8;padding:.08em .5em;border-radius:.3em;
+  -webkit-box-decoration-break:clone;box-decoration-break:clone;text-shadow:0 1px 3px #000}
+.player.mini .p-subs,.player.mini.ui .p-subs{bottom:10px;left:3%;right:3%}
+.player.mini .p-subs span{font-size:max(10px,calc(3.4cqw * var(--sub-scale,1)))}
+.p-menu .p-adj{display:flex;align-items:center;gap:6px;padding:4px 10px;font:13px var(--sans);color:#ddd}
+.p-menu .p-adj span{flex:1;color:#bbb}
+.p-menu .p-adj b{min-width:54px;text-align:center;font-weight:600;font-variant-numeric:tabular-nums}
+.p-menu .p-adj button{padding:3px 10px;background:#ffffff1a;font-weight:700}
+.p-menu .p-adj button:hover{background:#ffffff33}
+.p-menu .p-sep{height:1px;background:#ffffff1f;margin:6px 4px}
