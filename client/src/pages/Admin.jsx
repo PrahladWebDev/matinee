@@ -2,7 +2,7 @@ import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useSta
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { fmt } from '../progress';
-import ShareDialog, { copyText, shareUrl } from '../components/ShareDialog';
+import ShareDialog, { copyText, folderShareUrl, shareUrl } from '../components/ShareDialog';
 
 const VID = /\.(mp4|m4v|webm|mkv|mov)$/i;
 const nat = new Intl.Collator(undefined, { numeric: true });
@@ -443,6 +443,7 @@ function FolderNode({ f, inherited, idx, open, locked, onToggle, onFolder, onVid
         <PrivBadge priv={f.isPrivate} inherited={!f.isPrivate && inherited} />
         <Kebab label={`Actions for ${f.name}`}>
           <Link className="a-mi" role="menuitem" to={`/folder/${f._id}`}><Ic n="folder" />Open folder</Link>
+          <button type="button" className="a-mi" role="menuitem" onClick={() => onFolder('share', f)}><Ic n="share" />Share folder</button>
           <button type="button" className="a-mi" role="menuitem" onClick={() => onFolder('privacy', f)}><Ic n={f.isPrivate ? 'unlock' : 'lock'} />{f.isPrivate ? 'Make public' : 'Make private'}</button>
           <button type="button" className="a-mi" role="menuitem" onClick={() => onFolder('rename', f)}><Ic n="edit" />Rename</button>
           <button type="button" className="a-mi danger" role="menuitem" onClick={() => onFolder('delete', f)}><Ic n="trash" />Delete</button>
@@ -465,6 +466,7 @@ const EMPTY = [];
 function Library({ folders, videos, setVideos, reload, locked, canLock, privIds, refreshGate }) {
   const [open, setOpen] = useState(() => new Set());
   const [share, setShare] = useState(null);
+  const [shareF, setShareF] = useState(null);
   const [moving, setMoving] = useState(null);
   const [adding, setAdding] = useState(false);
   const [ask, setAsk] = useState(null); // private folder waiting for its PIN
@@ -543,7 +545,8 @@ function Library({ folders, videos, setVideos, reload, locked, canLock, privIds,
 
   const onFolder = useCallback(async (kind, f) => {
     try {
-      if (kind === 'rename') {
+      if (kind === 'share') setShareF(f);
+      else if (kind === 'rename') {
         const n = prompt('New name', f.name);
         if (n && n.trim()) { await api.renameFolder(f._id, n); reload(); }
       } else if (kind === 'delete') {
@@ -628,6 +631,7 @@ function Library({ folders, videos, setVideos, reload, locked, canLock, privIds,
       )}
 
       {share && <ShareDialog video={share} onClose={() => setShare(null)} />}
+      {shareF && <ShareDialog folder={shareF} onClose={() => setShareF(null)} />}
       {ask && <PinPrompt folder={ask} onUnlocked={unlocked} onClose={() => setAsk(null)} />}
       {moving && <MovePicker folders={folders} video={moving} onPick={moveTo} onClose={() => setMoving(null)} />}
     </Card>
@@ -636,35 +640,44 @@ function Library({ folders, videos, setVideos, reload, locked, canLock, privIds,
 
 /* ---------------- shared links ---------------- */
 function SharedLinks() {
-  const [list, setList] = useState(null);
+  const [vids, setVids] = useState(null);
+  const [folders, setFolders] = useState(null);
   const [copied, setCopied] = useState('');
-  const load = () => api.shares().then(setList).catch(() => setList([]));
+  const load = () => {
+    api.shares().then(setVids).catch(() => setVids([]));
+    api.folderShares().then(setFolders).catch(() => setFolders([]));
+  };
   useEffect(() => { load(); }, []);
-  const copy = async (v) => { await copyText(shareUrl(v.shareToken)); setCopied(v._id); setTimeout(() => setCopied(''), 1500); };
-  const stop = async (v) => {
-    if (!confirm(`Stop sharing “${v.title}”? The link will stop working.`)) return;
-    await api.revokeShare(v._id); load();
+  const copy = async (id, url) => { await copyText(url); setCopied(id); setTimeout(() => setCopied(''), 1500); };
+  const stop = async (item, isFolder) => {
+    const name = isFolder ? item.name : item.title;
+    if (!confirm(`Stop sharing “${name}”? The link will stop working.`)) return;
+    await (isFolder ? api.revokeFolderShare(item._id) : api.revokeShare(item._id)); load();
   };
   const when = (d) => (d ? new Date(d).toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) : 'Never expires');
+  const rows = [
+    ...(folders || []).map((x) => ({ x, isFolder: true, name: x.name, url: folderShareUrl(x.shareToken) })),
+    ...(vids || []).map((x) => ({ x, isFolder: false, name: x.title, url: shareUrl(x.shareToken) })),
+  ];
   return (
-    <Card title="Shared links" sub="Anyone with one of these links can watch that one video without logging in. Stop sharing to disable a link immediately.">
+    <Card title="Shared links" sub="Anyone with one of these links can watch that video (or the videos in that folder) without logging in. Stop sharing to disable a link immediately.">
       <ul className="a-tree">
-        {list?.map((v) => {
-          const expired = v.shareExpires && new Date(v.shareExpires) < new Date();
+        {rows.map(({ x, isFolder, name, url }) => {
+          const expired = x.shareExpires && new Date(x.shareExpires) < new Date();
           return (
-            <li key={v._id} className="a-vrow">
-              <span className="a-vic"><Ic n="link" s={18} /></span>
+            <li key={(isFolder ? 'f' : 'v') + x._id} className="a-vrow">
+              <span className="a-vic"><Ic n={isFolder ? 'folder' : 'link'} s={18} /></span>
               <div className="a-main">
-                <b className="a-title" title={v.title}>{v.title}</b>
-                <small>{expired ? 'Expired' : when(v.shareExpires)} · {v.shareViews || 0} views</small>
+                <b className="a-title" title={name}>{name}</b>
+                <small>{isFolder ? 'Folder · ' : ''}{expired ? 'Expired' : when(x.shareExpires)} · {x.shareViews || 0} views</small>
               </div>
-              <button className="btn sm" onClick={() => copy(v)}>{copied === v._id ? <><Ic n="check" s={15} /> Copied</> : 'Copy link'}</button>
-              <button className="a-icon-btn danger" onClick={() => stop(v)} aria-label={`Stop sharing ${v.title}`} title="Stop sharing"><Ic n="close" /></button>
+              <button className="btn sm" onClick={() => copy(x._id, url)}>{copied === x._id ? <><Ic n="check" s={15} /> Copied</> : 'Copy link'}</button>
+              <button className="a-icon-btn danger" onClick={() => stop(x, isFolder)} aria-label={`Stop sharing ${name}`} title="Stop sharing"><Ic n="close" /></button>
             </li>
           );
         })}
-        {!list && <li className="a-faint a-pad">Loading…</li>}
-        {list && !list.length && <li className="a-empty-row">Nothing is shared right now.</li>}
+        {(!vids || !folders) && <li className="a-faint a-pad">Loading…</li>}
+        {vids && folders && !rows.length && <li className="a-empty-row">Nothing is shared right now.</li>}
       </ul>
     </Card>
   );

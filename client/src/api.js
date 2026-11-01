@@ -60,6 +60,13 @@ export const api = {
   shares: () => call('GET', '/admin/shares'),
   shareInfo: (token) => call('GET', '/share/' + token),
 
+  // folder sharing (a link covers the folder + its sub-folders; shareFolderInfo is public)
+  getFolderShare: (id) => call('GET', `/admin/folders/${id}/share`),
+  createFolderShare: (id, body) => call('POST', `/admin/folders/${id}/share`, body || {}),
+  revokeFolderShare: (id) => call('DELETE', `/admin/folders/${id}/share`),
+  folderShares: () => call('GET', '/admin/folder-shares'),
+  shareFolderInfo: (token, sub) => call('GET', `/sharef/${token}${sub ? '?f=' + encodeURIComponent(sub) : ''}`),
+
   // returns { promise, abort } so the UI can show progress and cancel
   upload(file, { folderId, title }, onProgress) {
     const xhr = new XMLHttpRequest();

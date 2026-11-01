@@ -241,6 +241,42 @@ r.get('/shares', ah(async (req, res) => {
   res.json(await Video.find({ shareToken: { $exists: true } }).sort('-sharedAt').select('title shareToken shareExpires shareViews sharedAt').lean());
 }));
 
+// ---------- folder sharing (a folder link covers the folder and every sub-folder inside it) ----------
+r.get('/folders/:id/share', ah(async (req, res) => {
+  const f = await Folder.findById(req.params.id).select('shareToken shareExpires shareViews sharedAt');
+  if (!f) return bad(res, 404, 'Folder not found');
+  res.json(shareJson(f));
+}));
+
+r.post('/folders/:id/share', ah(async (req, res) => {
+  const f = await Folder.findById(req.params.id);
+  if (!f) return bad(res, 404, 'Folder not found');
+  const { expires, regenerate } = req.body || {};
+  if (!f.shareToken || regenerate) {
+    f.shareToken = crypto.randomBytes(24).toString('base64url');
+    f.sharedAt = new Date();
+    f.shareViews = 0;
+  }
+  if (expires !== undefined) {
+    const days = { '1d': 1, '7d': 7, '30d': 30 }[expires];
+    f.shareExpires = days ? new Date(Date.now() + days * 86400000) : undefined;
+  }
+  await f.save();
+  res.json(shareJson(f));
+}));
+
+r.delete('/folders/:id/share', ah(async (req, res) => {
+  const f = await Folder.findById(req.params.id);
+  if (!f) return bad(res, 404, 'Folder not found');
+  f.shareToken = undefined; f.shareExpires = undefined; f.sharedAt = undefined; f.shareViews = 0;
+  await f.save();
+  res.json({ shared: false });
+}));
+
+r.get('/folder-shares', ah(async (req, res) => {
+  res.json(await Folder.find({ shareToken: { $exists: true } }).sort('-sharedAt').select('name path shareToken shareExpires shareViews sharedAt').lean());
+}));
+
 // ---------- scan: import files you copied to MEDIA_ROOT by scp/rsync ----------
 r.post('/scan', ah(async (req, res) => {
   const stats = { newFolders: 0, newVideos: 0, removed: 0 };

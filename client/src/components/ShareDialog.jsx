@@ -5,6 +5,7 @@ import Icon from './Icon';
 import { cleanTitle } from '../format';
 
 export const shareUrl = (token) => `${window.location.origin}/s/${token}`;
+export const folderShareUrl = (token) => `${window.location.origin}/sf/${token}`;
 
 export async function copyText(text) {
   try { await navigator.clipboard.writeText(text); return true; }
@@ -22,8 +23,14 @@ export async function copyText(text) {
 const EXPIRY = [['never', 'Never expires'], ['1d', '1 day'], ['7d', '7 days'], ['30d', '30 days']];
 const fmtDate = (d) => new Date(d).toLocaleString(undefined, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
-/** Create / copy / stop a public link for one video. video = { _id, title } */
-export default function ShareDialog({ video, onClose }) {
+/** Create / copy / stop a public link for one video ({ video }) or for a folder + its sub-folders ({ folder }). */
+export default function ShareDialog({ video, folder, onClose }) {
+  const isFolder = !!folder;
+  const item = folder || video;
+  const name = isFolder ? folder.name : video.title;
+  const A = isFolder
+    ? { get: api.getFolderShare, create: api.createFolderShare, revoke: api.revokeFolderShare, link: folderShareUrl }
+    : { get: api.getShare, create: api.createShare, revoke: api.revokeShare, link: shareUrl };
   const [st, setSt] = useState(null);
   const [exp, setExp] = useState('never');
   const [busy, setBusy] = useState(false);
@@ -31,8 +38,8 @@ export default function ShareDialog({ video, onClose }) {
   const [err, setErr] = useState('');
 
   useEffect(() => {
-    api.getShare(video._id).then((s) => { setSt(s); setExp(s.shared ? 'keep' : 'never'); }).catch((e) => setErr(e.message));
-  }, [video._id]);
+    A.get(item._id).then((s) => { setSt(s); setExp(s.shared ? 'keep' : 'never'); }).catch((e) => setErr(e.message));
+  }, [item._id]); // eslint-disable-line
 
   useEffect(() => {
     const k = (e) => { if (e.key === 'Escape') onClose(); };
@@ -46,25 +53,25 @@ export default function ShareDialog({ video, onClose }) {
     setBusy(false);
   };
   const create = (regenerate = false) => act(async () => {
-    setSt(await api.createShare(video._id, { expires: exp === 'keep' ? undefined : exp, regenerate }));
+    setSt(await A.create(item._id, { expires: exp === 'keep' ? undefined : exp, regenerate }));
     if (exp === 'keep') setExp('keep');
   });
-  const stop = () => act(async () => { await api.revokeShare(video._id); setSt({ shared: false }); setExp('never'); });
+  const stop = () => act(async () => { await A.revoke(item._id); setSt({ shared: false }); setExp('never'); });
 
-  const url = st?.shared ? shareUrl(st.token) : '';
+  const url = st?.shared ? A.link(st.token) : '';
   const copy = async () => { if (await copyText(url)) { setCopied(true); setTimeout(() => setCopied(false), 1600); } };
-  const nativeShare = () => navigator.share?.({ title: cleanTitle(video.title), text: cleanTitle(video.title), url }).catch(() => {});
-  const wa = `https://wa.me/?text=${encodeURIComponent(`${cleanTitle(video.title)}\n${url}`)}`;
+  const nativeShare = () => navigator.share?.({ title: cleanTitle(name), text: cleanTitle(name), url }).catch(() => {});
+  const wa = `https://wa.me/?text=${encodeURIComponent(`${cleanTitle(name)}\n${url}`)}`;
   const expired = st?.expiresAt && new Date(st.expiresAt) < new Date();
 
   // rendered on <body> so no page container can trap it underneath the floating player
   return createPortal(
     <div className="modal-back" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
-      <div className="modal" role="dialog" aria-modal="true" aria-label="Share video" onKeyDown={(e) => e.stopPropagation()}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label={isFolder ? 'Share folder' : 'Share video'} onKeyDown={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <div>
-            <h2>Share this video</h2>
-            <p className="muted modal-sub" title={video.title}>{cleanTitle(video.title)}</p>
+            <h2>{isFolder ? 'Share this folder' : 'Share this video'}</h2>
+            <p className="muted modal-sub" title={name}>{cleanTitle(name)}</p>
           </div>
           <button className="round-btn" onClick={onClose} aria-label="Close"><Icon name="close" size={20} /></button>
         </div>
@@ -73,7 +80,9 @@ export default function ShareDialog({ video, onClose }) {
 
         {st && !st.shared && (
           <>
-            <p className="muted">Anyone with the link can watch <b>only this video</b>, without logging in. They can’t see the rest of your library.</p>
+            {isFolder
+              ? <p className="muted">Anyone with the link can watch the videos in <b>this folder and the folders inside it</b>, without logging in. They can’t see anything else in your library.{folder.isPrivate && ' This folder is private, but the link will still open it.'}</p>
+              : <p className="muted">Anyone with the link can watch <b>only this video</b>, without logging in. They can’t see the rest of your library.</p>}
             <label>Link expires
               <select value={exp} onChange={(e) => setExp(e.target.value)}>
                 {EXPIRY.map(([v, l]) => <option key={v} value={v}>{l}</option>)}

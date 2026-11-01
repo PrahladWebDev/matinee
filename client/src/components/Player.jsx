@@ -17,6 +17,8 @@ const SUB_SIZES = [0.7, 0.85, 1, 1.25, 1.5, 1.8, 2.2];
 function subBaseOf(src, id) {
   if (!src) return null;
   if (src.startsWith('/api/stream/')) return `/api/subs/${id}`;
+  const f = /^\/api\/sharef\/([^/]+)\/v\/([^/]+)\/stream/.exec(src);   // video inside a shared folder
+  if (f) return `/api/sharef/${f[1]}/v/${f[2]}/subs`;
   const m = /^\/api\/share\/([^/]+)\/stream/.exec(src);
   return m ? `/api/share/${m[1]}/subs` : null;
 }

@@ -1,0 +1,9 @@
+/* shared-folder page (/sf/:token) */
+.sf-main{max-width:1280px}
+.sf-player{margin-bottom:10px}
+.sf-crumbs{margin-top:26px}
+.sf-head{display:grid;gap:8px;justify-items:start;margin:4px 0 8px}
+.sf-head h1,.sf-head p{margin:0}
+.sf-main .sec-title{margin:26px 0 0}
+.vcard.sf-on .thumb{box-shadow:0 0 0 2px var(--accent)}
+@media (max-width:700px){.sf-crumbs,.sf-head,.sf-main .sec-title,.sf-main .grid,.sf-main .empty{margin-left:var(--pad);margin-right:var(--pad)}}

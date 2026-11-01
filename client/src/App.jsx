@@ -9,6 +9,7 @@ import Folder from './pages/Folder';
 import Watch from './pages/Watch';
 import Admin from './pages/Admin';
 import Share from './pages/Share';
+import ShareFolder from './pages/ShareFolder';
 
 const Auth = createContext(null);
 export const useAuth = () => useContext(Auth);
@@ -30,6 +31,7 @@ export default function App() {
         <Routes>
           <Route path="/login" element={<Login />} />
           <Route path="/s/:token" element={<Share />} />
+          <Route path="/sf/:token" element={<ShareFolder />} />
           <Route element={canBrowse ? <Layout /> : <Navigate to="/login" replace />}>
             <Route index element={<Home />} />
             <Route path="folder/:id" element={<Folder />} />

@@ -5,10 +5,14 @@ import Icon from '../components/Icon';
 import FolderCard from '../components/FolderCard';
 import VideoCard from '../components/VideoCard';
 import PinGate from '../components/PinGate';
+import ShareDialog from '../components/ShareDialog';
+import { useAuth } from '../App';
 
 export default function Folder() {
   const { id } = useParams();
   const nav = useNavigate();
+  const auth = useAuth();
+  const [sharing, setSharing] = useState(false);
   const [data, setData] = useState(null);
   const [err, setErr] = useState('');
   const [locked, setLocked] = useState(false);
@@ -57,6 +61,7 @@ export default function Folder() {
                 : null
             )}
             <button className="btn glass big" onClick={surprise} disabled={!total}><Icon name="shuffle" size={20} /> Random from here</button>
+            {auth.authenticated && <button className="btn glass big" onClick={() => setSharing(true)}><Icon name="share" size={20} /> Share folder</button>}
           </div>
         </div>
       </header>
@@ -76,6 +81,7 @@ export default function Folder() {
         )}
         {!data.folders.length && !data.videos.length && <div className="empty"><p>This folder is empty.</p></div>}
       </div>
+      {sharing && <ShareDialog folder={data.folder} onClose={() => setSharing(false)} />}
     </div>
   );
 }

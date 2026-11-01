@@ -9,6 +9,11 @@ const schema = new mongoose.Schema(
     // private folder: its videos (and every sub-folder's) stay off Home, search and random shuffle;
     // they can only be played by opening the folder directly
     isPrivate: { type: Boolean, default: false },
+    // sharing: anyone with /sf/<shareToken> can watch the videos in THIS folder and its sub-folders, no login
+    shareToken: { type: String, index: { unique: true, sparse: true } },
+    shareExpires: { type: Date },
+    shareViews: { type: Number, default: 0 },
+    sharedAt: { type: Date },
   },
   { timestamps: true }
 );

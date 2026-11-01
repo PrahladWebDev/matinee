@@ -1,42 +1,20 @@
-MATINEE - SHARE LINK UPDATE
+MATINEE - SHARE WHOLE FOLDER UPDATE
 Extract into your project ROOT (the folder containing client/ and server/) and choose "Replace".
+No new npm packages. After copying: rebuild the client (npm run build in client/) and restart the server (pm2 restart).
 
 NEW files
-  server/src/routes/share.js            public, token-based routes (no login)
-  server/src/utils/stream.js            video streaming (now shared by normal + shared links)
-  server/src/utils/og.js                title + preview image for WhatsApp/Telegram cards
-  client/src/pages/Share.jsx            the page people see when they open a shared link
-  client/src/components/ShareDialog.jsx  the Share popup (create / copy / expiry / stop)
+  server/src/routes/shareFolder.js      public routes for a shared folder (no login)
+  client/src/pages/ShareFolder.jsx      page people see at /sf/<token> (folders + videos + player)
+  client/src/sharefolder.css
 
-REPLACED files
-  server/src/index.js
-  server/src/models/Video.js            adds shareToken / shareExpires / shareViews / sharedAt
-  server/src/routes/admin.js            share endpoints
-  server/src/routes/library.js          uses the shared streaming + poster helpers
-  server/src/utils/media.js
+CHANGED files
+  server/src/models/Folder.js           share fields on folders
+  server/src/routes/admin.js            folder share endpoints
+  server/src/index.js                   mounts /api/sharef and /sf/:token (preview card)
   client/src/api.js
-  client/src/App.jsx                    adds the public /s/:token route
-  client/src/pages/Watch.jsx            Share button
-  client/src/pages/Admin.jsx            Share button in Manage videos + "Shared links" panel
-  client/src/components/Icon.jsx
-  client/src/styles.css
-  deploy/nginx.conf
-  MATINEE_COMPLETE_DEPLOYMENT_GUIDE.md
-
-DEPLOY
-1. git add . && git commit -m "Share links" && git push     (Actions rebuilds + reloads)
-2. ONE manual VPS step (only needed for the WhatsApp/Telegram preview card;
-   links work without it):
-     sudo nano /etc/nginx/sites-available/matinee.prahladsingh.in
-   Inside the main server block (the one with "listen 443 ssl"), add this ABOVE "location /assets/":
-
-     location /s/ {
-         proxy_pass http://localhost:5009;
-         proxy_set_header Host $host;
-         proxy_set_header X-Real-IP $remote_addr;
-         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-         proxy_set_header X-Forwarded-Proto $scheme;
-     }
-
-   then:  sudo nginx -t && sudo systemctl reload nginx
-No .env changes needed.
+  client/src/App.jsx                    public /sf/:token route
+  client/src/components/ShareDialog.jsx works for videos and folders
+  client/src/components/Player.jsx      subtitles for videos in a shared folder
+  client/src/pages/Folder.jsx           "Share folder" button
+  client/src/pages/Admin.jsx            "Share folder" in folder menu + folders in "Shared links"
+  deploy/nginx.conf                     adds location /sf/  (copy into your nginx site file, then: nginx -t && systemctl reload nginx)

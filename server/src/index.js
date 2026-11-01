@@ -12,6 +12,7 @@ import authRoutes from './routes/auth.js';
 import libraryRoutes from './routes/library.js';
 import adminRoutes from './routes/admin.js';
 import shareRoutes, { findShared } from './routes/share.js';
+import shareFolderRoutes, { findSharedFolder, folderCover } from './routes/shareFolder.js';
 import privateRoutes from './routes/private.js';
 import audioRoutes from './routes/audio.js';
 import subsRoutes from './routes/subs.js';
@@ -32,7 +33,8 @@ app.use(cookieParser());
 
 app.use('/api/auth', authRoutes);
 app.use('/api/admin', adminRoutes);
-app.use('/api/share', shareRoutes);   // public, token-based
+app.use('/api/share', shareRoutes);   // public, token-based (one video)
+app.use('/api/sharef', shareFolderRoutes);   // public, token-based (a folder and its sub-folders)
 app.use('/api/private', privateRoutes);   // PIN unlock for private folders
 app.use('/api/audio', audioRoutes);       // audio-language tracks
 app.use('/api/subs', subsRoutes);         // subtitles (embedded + external files)
@@ -49,6 +51,20 @@ if (fs.existsSync(dist)) {
     if (v) {
       const base = `${req.protocol}://${req.get('host')}`;
       html = injectOg(html, { title: v.title, url: `${base}/s/${req.params.token}`, image: `${base}/api/share/${req.params.token}/poster` });
+    }
+    res.set('Cache-Control', 'no-store').type('html').send(html);
+  }));
+  // Shared-folder page: same idea, with the folder name + a cover frame for chat apps
+  app.get('/sf/:token', ah(async (req, res) => {
+    let html = await fs.promises.readFile(path.join(dist, 'index.html'), 'utf8');
+    const f = await findSharedFolder(req.params.token);
+    if (f) {
+      const base = `${req.protocol}://${req.get('host')}`;
+      const cover = await folderCover(f);
+      html = injectOg(html, {
+        title: f.name, url: `${base}/sf/${req.params.token}`,
+        image: cover ? `${base}/api/sharef/${req.params.token}/v/${cover}/poster` : `${base}/logo-v2.png`,
+      });
     }
     res.set('Cache-Control', 'no-store').type('html').send(html);
   }));
