@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../App';
 import Icon from './Icon';
 import ThemeSwitcher from './ThemeSwitcher';
+import Logo from './Logo';
 import { cleanTitle } from '../format';
 
 export default function Navbar() {
@@ -65,7 +66,7 @@ export default function Navbar() {
   return (
     <>
       <header className={`nav${solid ? ' solid' : ''}`}>
-        <Link to="/" className="logo" aria-label="Matinee"><img className="logo-img" src="/logo-nav-v2.png" alt="Matinee" /></Link>
+        <Link to="/" className="logo" aria-label="Matinee"><Logo /></Link>
         <span className="grow" />
 
         <div className={`search${expanded ? ' open' : ''}`}>

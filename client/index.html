@@ -3,19 +3,23 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="theme-color" content="#0e1514" />
+    <meta name="theme-color" content="#0d070a" />
     <title>Matinee</title>
-    <link rel="icon" type="image/png" href="/favicon-v2.png" />
-    <link rel="apple-touch-icon" href="/apple-touch-icon-v2.png" />
+    <link rel="icon" type="image/png" sizes="64x64" href="/favicon-v3.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/favicon-192-v3.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon-v3.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
     <script>
       // apply the saved theme before first paint (no flash)
       (function () {
         try {
-          var ids = ['cinema','light','nord','cream','vampire','forest','ocean','mocha'];
+          var ids = ['matinee','cinema','light','nord','cream','vampire','forest','ocean','mocha'];
           var t = localStorage.getItem('matinee-theme');
-          if (ids.indexOf(t) < 0) t = 'cinema';
+          if (ids.indexOf(t) < 0) t = 'matinee';
           document.documentElement.setAttribute('data-theme', t);
-          var m = { cinema:'#0e1514', light:'#f4f5f3', nord:'#2e3440', cream:'#f6eddb', vampire:'#1d1e29', forest:'#0f1a14', ocean:'#0b1622', mocha:'#1b1511' };
+          var m = { matinee:'#0d070a', cinema:'#0e1514', light:'#f4f5f3', nord:'#2e3440', cream:'#f6eddb', vampire:'#1d1e29', forest:'#0f1a14', ocean:'#0b1622', mocha:'#1b1511' };
           document.querySelector('meta[name="theme-color"]').setAttribute('content', m[t]);
         } catch (e) {}
       })();

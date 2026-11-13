@@ -63,7 +63,7 @@ if (fs.existsSync(dist)) {
       const cover = await folderCover(f);
       html = injectOg(html, {
         title: f.name, url: `${base}/sf/${req.params.token}`,
-        image: cover ? `${base}/api/sharef/${req.params.token}/v/${cover}/poster` : `${base}/logo-v2.png`,
+        image: cover ? `${base}/api/sharef/${req.params.token}/v/${cover}/poster` : `${base}/og-v3.png`,
       });
     }
     res.set('Cache-Control', 'no-store').type('html').send(html);

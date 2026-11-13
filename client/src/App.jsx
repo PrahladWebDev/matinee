@@ -22,7 +22,7 @@ export default function App() {
   const [state, setState] = useState(null);
   const refresh = () => api.me().then(setState).catch(() => setState({ authenticated: false, publicBrowsing: false }));
   useEffect(() => { refresh(); }, []);
-  if (!state) return <div className="splash">Loading…</div>;
+  if (!state) return <div className="splash" role="status"><span className="splash-mark" /><span className="sr-only">Loading…</span></div>;
 
   const canBrowse = state.authenticated || state.publicBrowsing;
   return (

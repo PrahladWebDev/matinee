@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 import { api } from '../api';
 import Icon from '../components/Icon';
 import ThemeSwitcher from '../components/ThemeSwitcher';
+import Logo from '../components/Logo';
 import Player from '../components/Player';
 import { fmt } from '../progress';
 
@@ -21,7 +22,7 @@ export default function Share() {
   return (
     <div className="share-page">
       <header className="share-top">
-        <span className="logo"><img className="logo-img" src="/logo-nav-v2.png" alt="Matinee" /></span>
+        <span className="logo"><Logo /></span>
         <ThemeSwitcher />
         <span className="share-tag"><Icon name="link" size={15} /> Shared with you</span>
       </header>

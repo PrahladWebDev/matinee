@@ -26,7 +26,7 @@ export default function Hero({ items, onRandom }) {
     if (items.length < 2 || paused) return;
     const t = setInterval(() => setI((x) => (x + 1) % items.length), 12000);
     return () => clearInterval(t);
-  }, [items.length, paused]);
+  }, [items.length, paused, i]);
 
   // after a short pause, fade a muted preview over the poster
   useEffect(() => {
@@ -39,7 +39,7 @@ export default function Hero({ items, onRandom }) {
   useEffect(() => { if (vref.current) vref.current.muted = muted; }, [muted, showVid]);
 
   return (
-    <section className="hero2" onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
+    <section className={`hero2${paused ? ' paused' : ''}`} onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
       <div className="hero2-bg">
         {items.map((it, k) => (
           <img key={it._id} className={k === i ? 'on' : ''} src={`/api/poster/${it._id}`} alt=""

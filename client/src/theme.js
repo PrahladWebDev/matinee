@@ -1,5 +1,6 @@
 // Theme registry + persistence. The <html data-theme="…"> attribute drives every colour in styles.css.
 export const THEMES = [
+  { id: 'matinee', name: 'Matinee', bg: '#0d070a', accent: '#e5254f', meta: '#0d070a' },
   { id: 'cinema',  name: 'Cinema',  bg: '#0e1514', accent: '#dcaa4a', meta: '#0e1514' },
   { id: 'light',   name: 'Light',   bg: '#f4f5f3', accent: '#0f766e', meta: '#f4f5f3' },
   { id: 'nord',    name: 'Nord',    bg: '#2e3440', accent: '#88c0d0', meta: '#2e3440' },
@@ -11,7 +12,7 @@ export const THEMES = [
 ];
 
 const KEY = 'matinee-theme';
-const DEFAULT = 'cinema';
+const DEFAULT = 'matinee';
 const listeners = new Set();
 
 export function getTheme() {

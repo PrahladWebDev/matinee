@@ -7,7 +7,17 @@
   --ease:cubic-bezier(.2,.8,.2,1);
   --nav-h:68px; --pad:clamp(16px,4vw,56px);
 }
-:root,html[data-theme="cinema"]{
+/* Matinee brand theme (default): burgundy-black with the logo's crimson/rose */
+:root,html[data-theme="matinee"]{
+  color-scheme:dark;
+  --bg:#0d070a; --bg2:#140b0f; --bg-deep:#070304; --surface:#1b1015; --surface2:#25171d; --surface3:#331f27; --input-bg:#0a0507;
+  --line:#33202a; --line2:#4d3039; --text:#fbf0f3; --text-soft:#ead5db; --muted:#b4969f;
+  --accent:#e5254f; --accent2:#9d0f35; --accent-hover:#ff4a73; --accent-ink:#ffffff; --glow:#e5254f;
+  --ok:#7fd9a6; --warn:#f0c36d; --shadow:#000;
+  --danger:#ffb08a; --danger-ink:#ffd6c2; --danger-bg:#3a1c18; --danger-line:#6b3a2f;
+  --logo-filter:none;
+}
+html[data-theme="cinema"]{
   color-scheme:dark;
   --bg:#0e1514; --bg2:#131c1b; --bg-deep:#070c0b; --surface:#17221f; --surface2:#1f2d2a; --surface3:#283a36; --input-bg:#0a1110;
   --line:#2a3c38; --line2:#3d5650; --text:#f7efd9; --text-soft:#e2d8bd; --muted:#a7b3a9;
@@ -681,3 +691,145 @@ body{position:relative}
 /* long audio-language lists scroll inside the player menu */
 .p-menu{max-height:min(330px,52vh);overflow-y:auto;scrollbar-width:thin}
 .p-menu button{white-space:nowrap}
+
+
+/* =====================================================================
+   MODERN LAYER (brand v3): type, ambient light, motion, glass, logo
+   ===================================================================== */
+:root{
+  --serif:'Outfit',system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;
+  --sans:'Outfit',system-ui,-apple-system,'Segoe UI',Roboto,'Helvetica Neue',sans-serif;
+  --grad:linear-gradient(135deg,var(--accent2),var(--accent));
+}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+body{font-size:15.5px;
+  background:
+    radial-gradient(55vmax 38vmax at 6% -10%,color-mix(in srgb,var(--accent) 13%,transparent),transparent 62%),
+    radial-gradient(48vmax 34vmax at 104% 0%,color-mix(in srgb,var(--accent2) 15%,transparent),transparent 64%),
+    var(--bg);
+  background-attachment:fixed}
+h1,h2,h3{letter-spacing:-.01em}
+::-webkit-scrollbar-thumb:hover{background:var(--accent2)}
+
+/* ---- logo (two images; CSS shows the one that suits the theme) ---- */
+.lg-lt{display:none}
+html[data-theme="light"] .lg-lt,html[data-theme="cream"] .lg-lt{display:block}
+html[data-theme="light"] .lg-dk,html[data-theme="cream"] .lg-dk{display:none}
+.logo-img,.login-logo{filter:drop-shadow(0 4px 14px color-mix(in srgb,var(--accent) 24%,transparent));transition:transform .45s var(--ease),filter .45s}
+html[data-theme="light"] .logo-img,html[data-theme="light"] .login-logo,
+html[data-theme="cream"] .logo-img,html[data-theme="cream"] .login-logo{filter:drop-shadow(0 2px 6px rgba(90,10,30,.16))}
+.logo-img{height:clamp(28px,3vw,38px);width:auto}
+.logo:hover .logo-img{transform:scale(1.045)}
+.share-top .logo-img{height:32px}
+@media (max-width:760px){.logo-img{height:28px}.share-top .logo-img{height:26px}}
+.login-logo{width:min(300px,78%);margin:0 auto 4px;animation:logoIn 1.1s var(--ease) both}
+@keyframes logoIn{from{opacity:0;transform:translateY(10px) scale(.92);filter:blur(8px)}to{opacity:1;transform:none}}
+
+/* ---- loading splash: the M mark with a light sweep ---- */
+.splash{position:relative}
+.splash-mark{position:relative;display:block;width:96px;height:88px;background:url(/logo-mark-v3.png) center/contain no-repeat;
+  filter:drop-shadow(0 12px 34px color-mix(in srgb,var(--accent) 45%,transparent));
+  animation:markIn .8s var(--ease) both,markFloat 2.6s ease-in-out .8s infinite}
+.splash-mark::after{content:'';position:absolute;inset:0;-webkit-mask:url(/logo-mark-v3.png) center/contain no-repeat;mask:url(/logo-mark-v3.png) center/contain no-repeat;
+  background:linear-gradient(110deg,transparent 38%,rgba(255,255,255,.75) 50%,transparent 62%) 160% 0/260% 100% no-repeat;animation:sheen 1.8s ease-in-out .5s infinite}
+@keyframes markIn{from{opacity:0;transform:scale(.7) rotate(-6deg)}to{opacity:1;transform:none}}
+@keyframes markFloat{0%,100%{transform:translateY(0)}50%{transform:translateY(-7px)}}
+@keyframes sheen{to{background-position:-60% 0}}
+
+/* ---- buttons ---- */
+.btn{border-radius:11px;position:relative;overflow:hidden;isolation:isolate;letter-spacing:.005em}
+.btn.accent,.hero2 .btn.accent,.fhero .btn.accent{background:var(--grad);color:var(--accent-ink);
+  box-shadow:0 8px 24px color-mix(in srgb,var(--accent) 30%,transparent),inset 0 1px 0 rgba(255,255,255,.22)}
+.btn.accent::after{content:'';position:absolute;inset:0;z-index:-1;background:linear-gradient(105deg,transparent 32%,rgba(255,255,255,.34) 50%,transparent 68%);transform:translateX(-130%);transition:transform .75s var(--ease)}
+.btn.accent:hover:not(:disabled),.hero2 .btn.accent:hover:not(:disabled),.fhero .btn.accent:hover:not(:disabled){background:var(--grad);filter:brightness(1.1);transform:translateY(-2px);
+  box-shadow:0 14px 34px color-mix(in srgb,var(--accent) 42%,transparent),inset 0 1px 0 rgba(255,255,255,.28)}
+.btn.accent:hover:not(:disabled)::after{transform:translateX(130%)}
+.btn.glass{border:1px solid color-mix(in srgb,var(--text) 16%,transparent);backdrop-filter:blur(14px) saturate(140%)}
+.btn.glass:hover:not(:disabled){border-color:color-mix(in srgb,var(--accent) 60%,transparent);background:color-mix(in srgb,var(--accent) 16%,transparent)}
+.chip:hover{background:var(--grad);border-color:transparent;color:var(--accent-ink)}
+
+/* ---- header ---- */
+.nav.solid{background:color-mix(in srgb,var(--bg) 76%,transparent);backdrop-filter:blur(22px) saturate(170%)}
+.nav.solid::after{content:'';position:absolute;left:0;right:0;bottom:-1px;height:1px;background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--accent) 60%,transparent),transparent);opacity:.7;pointer-events:none}
+@supports (animation-timeline:scroll()){
+  .nav::before{content:'';position:absolute;left:0;top:0;height:2px;width:100%;background:var(--grad);transform:scaleX(0);transform-origin:left;pointer-events:none;
+    animation:scrollbar linear both;animation-timeline:scroll(root)}
+  @keyframes scrollbar{to{transform:scaleX(1)}}
+}
+.ico{transition:color .2s,background .25s,transform .25s var(--ease)}
+.ico:hover{transform:translateY(-2px)}
+.ico.on{color:var(--accent-hover)}
+.search.open{box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 16%,transparent)}
+.search-res{border-radius:14px}
+.search-res a:hover{background:color-mix(in srgb,var(--accent) 14%,transparent)}
+
+/* ---- hero: staggered entrance + autoplay progress ---- */
+.hero2-copy{animation:none}
+.hero2-copy>*{animation:heroIn .85s var(--ease) both}
+.hero2-copy>:nth-child(2){animation-delay:.08s}
+.hero2-copy>:nth-child(3){animation-delay:.16s}
+.hero2-copy>:nth-child(4){animation-delay:.24s}
+.hero2-copy h1{font-weight:800;letter-spacing:-.025em;text-shadow:0 8px 50px var(--shadow)}
+.hero2-bg::after{content:'';position:absolute;inset:0;background:radial-gradient(70% 90% at 0% 100%,color-mix(in srgb,var(--accent2) 30%,transparent),transparent 65%);mix-blend-mode:soft-light;pointer-events:none}
+.dots{gap:8px}
+.dots button{position:relative;overflow:hidden;height:5px;width:12px;background:color-mix(in srgb,var(--text) 28%,transparent)}
+.dots button.on{width:42px;background:color-mix(in srgb,var(--text) 22%,transparent)}
+.dots button.on::after{content:'';position:absolute;inset:0;background:var(--grad);transform-origin:left;animation:dotFill 12s linear both}
+.hero2.paused .dots button.on::after{animation:none}
+@keyframes dotFill{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+
+/* ---- rows & cards ---- */
+.row .row-h{opacity:0;transform:translateX(-12px);transition:opacity .6s var(--ease),transform .6s var(--ease)}
+.row.in .row-h{opacity:1;transform:none}
+.row-title h2::before{content:'';display:inline-block;width:4px;height:.95em;margin-right:10px;border-radius:3px;background:var(--grad);vertical-align:-.1em;transition:height .3s var(--ease)}
+.row-title:hover h2::before{height:1.2em}
+.thumb{border-radius:12px;box-shadow:0 6px 18px #0006,0 0 0 1px color-mix(in srgb,var(--text) 6%,transparent)}
+.vcard:hover .thumb{transform:scale(1.1) translateY(-4px);
+  box-shadow:0 28px 60px #000c,0 0 0 1px color-mix(in srgb,var(--accent) 75%,transparent),0 0 44px color-mix(in srgb,var(--accent) 26%,transparent)}
+.t-info{background:linear-gradient(transparent,color-mix(in srgb,var(--bg-deep) 92%,transparent))}
+.round{background:var(--grad);color:#fff;box-shadow:0 6px 18px color-mix(in srgb,var(--accent) 50%,transparent)}
+.vcard:hover .round{animation:popIn .45s var(--ease) both}
+@keyframes popIn{from{transform:scale(.5);opacity:0}to{transform:none;opacity:1}}
+.resume-play{border-color:var(--accent);background:color-mix(in srgb,var(--bg-deep) 60%,transparent);color:#fff}
+.prog b{background:var(--grad)}
+.fshade{background:linear-gradient(transparent 20%,color-mix(in srgb,var(--bg-deep) 94%,transparent))}
+.fname{font-weight:800;letter-spacing:-.01em}
+.fcard .thumb{border:0}
+.arrow svg{filter:drop-shadow(0 2px 6px #000a)}
+
+/* ---- login ---- */
+@property --ang{syntax:'<angle>';inherits:false;initial-value:0deg}
+.login::before,.login::after{display:block}
+.login::before{background:color-mix(in srgb,var(--accent) 38%,transparent)}
+.login::after{background:color-mix(in srgb,var(--accent2) 45%,transparent)}
+.login-card{position:relative;border:0;border-radius:22px;padding:36px 32px;background:color-mix(in srgb,var(--bg2) 76%,transparent);
+  backdrop-filter:blur(24px) saturate(150%);box-shadow:0 40px 90px color-mix(in srgb,var(--shadow) 75%,transparent)}
+.login-card::before{content:'';position:absolute;inset:0;border-radius:inherit;padding:1px;pointer-events:none;
+  background:conic-gradient(from var(--ang),color-mix(in srgb,var(--text) 10%,transparent) 0 50%,var(--accent) 78%,color-mix(in srgb,var(--text) 10%,transparent) 100%);
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:spinAng 7s linear infinite}
+@keyframes spinAng{to{--ang:360deg}}
+
+/* ---- forms, panels, dialogs ---- */
+input,select{border-radius:12px;padding:11px 14px}
+input:focus,select:focus{box-shadow:0 0 0 4px color-mix(in srgb,var(--accent) 18%,transparent)}
+.panel,.playlist,.modal,.pin-card{border-radius:18px}
+.panel:hover{border-color:color-mix(in srgb,var(--accent) 38%,var(--line))}
+.modal{box-shadow:0 40px 100px var(--shadow),0 0 0 1px color-mix(in srgb,var(--accent) 12%,transparent)}
+.dropzone:hover{background:color-mix(in srgb,var(--accent) 7%,transparent)}
+.pl-list a.on{background:linear-gradient(90deg,color-mix(in srgb,var(--accent) 16%,transparent),transparent)}
+.share-tag{background:color-mix(in srgb,var(--accent) 12%,transparent);border-color:color-mix(in srgb,var(--accent) 40%,transparent)}
+.pin-ico{background:var(--grad);color:#fff;box-shadow:0 10px 30px color-mix(in srgb,var(--accent) 40%,transparent)}
+.empty h2{letter-spacing:-.01em}
+
+/* ---- phones: tab bar ---- */
+@media (max-width:760px){
+  .tabbar{background:color-mix(in srgb,var(--bg2) 78%,transparent);backdrop-filter:blur(22px) saturate(170%);border-color:color-mix(in srgb,var(--accent) 22%,transparent)}
+  .tabbar .ico.on{background:color-mix(in srgb,var(--accent) 24%,transparent);color:var(--accent-hover)}
+  .hero2{border-radius:20px}
+  .dots button.on{width:30px}
+}
+
+@media (prefers-reduced-motion:reduce){
+  .row .row-h{opacity:1;transform:none}
+  .nav::before{display:none}
+}
