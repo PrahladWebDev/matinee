@@ -1,0 +1,7 @@
+/* login background video */
+.login-video,.login-video-shade{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.login-video{object-fit:cover;z-index:-3}
+.login-video-shade{z-index:-2;background:linear-gradient(color-mix(in srgb,var(--bg-deep) 55%,transparent),color-mix(in srgb,var(--bg-deep) 82%,transparent))}
+.login.has-video{background:var(--bg-deep)}
+.login.has-video::before,.login.has-video::after{display:none}
+@media (prefers-reduced-motion:reduce){.login-video{display:none}}
