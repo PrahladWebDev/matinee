@@ -4,6 +4,7 @@ import { api } from '../api';
 import { useAuth } from '../App';
 import ThemeSwitcher from '../components/ThemeSwitcher';
 import Logo from '../components/Logo';
+import '../login-video.css';
 
 export default function Login() {
   const auth = useAuth();
@@ -22,7 +23,9 @@ export default function Login() {
   };
 
   return (
-    <div className="login">
+    <div className="login has-video">
+      <video className="login-video" src="/login-bg.mp4" poster="/login-bg-poster.jpg" autoPlay muted loop playsInline preload="auto" />
+      <div className="login-video-shade" />
       <div className="theme-fab"><ThemeSwitcher /></div>
       <form onSubmit={submit} className="login-card">
         <Logo variant="full" />
