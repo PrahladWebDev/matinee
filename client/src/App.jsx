@@ -1,8 +1,9 @@
 import { createContext, useContext, useEffect, useState } from 'react';
-import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Outlet, Route, Routes, useLocation } from 'react-router-dom';
 import { api } from './api';
 import Navbar from './components/Navbar';
 import PlayerHost from './components/PlayerHost';
+import BgVideo from './components/BgVideo';
 import Login from './pages/Login';
 import Home from './pages/Home';
 import Folder from './pages/Folder';
@@ -15,7 +16,9 @@ const Auth = createContext(null);
 export const useAuth = () => useContext(Auth);
 
 function Layout() {
-  return (<><Navbar /><Outlet /></>);
+  const { pathname } = useLocation();
+  const showBg = pathname === '/' || pathname.startsWith('/admin');
+  return (<>{showBg && <BgVideo />}<Navbar /><Outlet /></>);
 }
 
 export default function App() {
